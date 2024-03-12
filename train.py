@@ -4,14 +4,14 @@ from torch.utils.data import DataLoader
 import torch.nn as nn
 import os
 import warnings
-warnings.filterwarnings('ignore')
 
 from trainer import Trainer
 from vimeo_dataset import VimeoDataset
-from network37 import Network
+# from network37 import Network
+from network37_extra_receptive import Network
 
 
-def load_model_checkpoint(model, checkpoint_path):
+def load_model_checkpoint(model, checkpoint_path, strict=True, finetune_large=False):
 	param = torch.load(checkpoint_path, map_location='cuda:0')
 	layers_to_remove = []
 	for key in param:
@@ -21,24 +21,34 @@ def load_model_checkpoint(model, checkpoint_path):
 			layers_to_remove.append(key)
 		if "translation_predictor.1.HW" in key:
 			layers_to_remove.append(key)
+
+		if finetune_large:
+			if "cross_scale_feature_fusion" in key:
+				layers_to_remove.append(key)
+			if "translation_predictor" in key:
+				layers_to_remove.append(key)
+			if "motion_mlp" in key:
+				layers_to_remove.append(key)
+
 	for key in layers_to_remove:
-		del param[key]
-	model.load_state_dict(param)
+		try:
+			del param[key]
+		except:
+			warnings.warn(f"layer {key} is to be removed, but not found.")
+	model.load_state_dict(param, strict=strict)
 
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
-
 	
 	parser.add_argument("--debug", action="store_true", default=False)
 	parser.add_argument("--debug_iter", type=int, default=5) # iteration use for debug mode
-
 	parser.add_argument("--batch_size", type=int, default=16)
 	parser.add_argument("--init_lr", type=float, default=1e-4)
 	parser.add_argument("--weight_decay", type=float, default=1e-4)
 	parser.add_argument("--num_epoch", type=int, default=300)
 	parser.add_argument("--device", type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
-	parser.add_argument("vimeo_path", type=str, default="/home/kim/ssd/vimeo_triplet/")
+	parser.add_argument("--vimeo_path", type=str, default="/home/kim/ssd/vimeo_triplet/")
 
 	parser.add_argument("--model_checkpoints", type=str, default="./finetune_model_checkpoints24/")
 	parser.add_argument("--visualization_path", type=str, default="./finetune_visualization24/")
@@ -67,11 +77,11 @@ if __name__ == "__main__":
 	pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 	print(f"total trainable parameters: {round(pytorch_total_params/1e6, 2)} M")
 
-	isLoadCheckpoint = False
-	# isLoadCheckpoint = True
+	# isLoadCheckpoint = False
+	isLoadCheckpoint = True
 	if isLoadCheckpoint:
-		param = "./finetune_model_checkpoints12/epoch_62_psnr_35.9664.pt"
-		load_model_checkpoint(model, param)
+		param = "./finetune_model_checkpoints24/epoch_209_psnr_36.3509.pt"
+		load_model_checkpoint(model, param, strict=False, finetune_large=True)
 
 	# --------------------------
 	#		prepare data
@@ -89,4 +99,5 @@ if __name__ == "__main__":
 	#		config trainer
 	# --------------------------
 	trainer = Trainer(model, train_loader, val_loader, [0., 0., 0.], [1., 1., 1.], args)
+	warnings.filterwarnings('ignore')
 	trainer.train() # start training

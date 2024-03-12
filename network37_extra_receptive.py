@@ -1,20 +1,11 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from collections import OrderedDict
-import einops
-from PIL import Image
-from trainer import Trainer
-from itertools import chain
 from timm.models.layers import trunc_normal_
+import einops
 import math
-import torchvision
-
-import xformers
-import xformers.ops
-
 from flow_warp import flow_warp
-from frameattn1 import MotionFormerBlock, Mlp
+from frameattn1 import MotionFormerBlock, RefineBottleneck
 
 def upsample_flow(flow, upsample_factor=2, mode='bilinear'):
 	if mode == 'nearest':
@@ -56,7 +47,7 @@ class CrossScalePatchEmbed(nn.Module):
 						bias=True)
 					)
 		self.layers = nn.ModuleList(layers)
-		concat_dim = sum([2**(2-i) * in_dims[i] for i in range(len(in_dims)-1)]) + in_dims[-1]
+		concat_dim = int(sum([2**(len(in_dims)-2-i) * in_dims[i] for i in range(len(in_dims)-1)]) + in_dims[-1])
 		if fused_dim is None:
 			fused_dim = concat_dim
 		self.proj = nn.Conv2d(concat_dim, fused_dim, 1, 1)
@@ -93,45 +84,6 @@ class CrossScalePatchEmbed(nn.Module):
 		return x, H, W
 
 
-class TransformerLayer(nn.Module):
-	def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0., drop=0., mlp_ratio=4.):
-		super().__init__()
-		
-		self.num_heads = num_heads
-		head_dim = dim // num_heads
-		self.scale = qk_scale or head_dim ** -0.5
-
-		self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
-		self.attn_drop = nn.Dropout(attn_drop)
-		self.proj = nn.Linear(dim, dim)
-		self.proj_drop = nn.Dropout(proj_drop)
-
-		self.norm1 = nn.LayerNorm(dim)
-		self.norm2 = nn.LayerNorm(dim)
-
-		mlp_hidden_dim = int(dim * mlp_ratio)
-		self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=nn.GELU, drop=drop)	
-
-	def forward(self, x):
-		"""
-		x: tensor with shape [B, H*W, C]
-		return: tensor with shape [B, H*W, C]
-		"""
-		# MSA
-		x_residual = self.norm1(x)
-		qkv = self.qkv(x_residual)
-		qkv = einops.rearrange(qkv, 'B L (K H D) -> K B L H D', K=3, H=self.num_heads)
-		q, k, v = qkv[0], qkv[1], qkv[2]  # B L H D
-		x_residual = xformers.ops.memory_efficient_attention(q, k, v)
-		x_residual = einops.rearrange(x_residual, 'B L H D -> B L (H D)', H=self.num_heads)
-		x_residual = self.proj(x_residual)
-		x_residual = self.proj_drop(x_residual)
-
-		x = x + x_residual
-		x = x + self.mlp(self.norm2(x))
-		return x
-
-
 class Network(nn.Module):
 	def __init__(self):
 		super(Network, self).__init__()	
@@ -155,9 +107,19 @@ class Network(nn.Module):
 									  conv(self.hidden_dims[i-1], self.hidden_dims[i], kernel_size=3, stride=1, padding=1),
 									  conv(self.hidden_dims[i], self.hidden_dims[i], kernel_size=3, stride=1, padding=1))
 					)
+				
+		self.hidden_dims.append(int(1.5*self.hidden_dims[-1]))
+		self.extra_encoder = nn.ModuleList([
+								nn.Sequential(nn.AvgPool2d(kernel_size=2),
+											conv(self.hidden_dims[-2], self.hidden_dims[-1], kernel_size=3, stride=1, padding=1),
+											conv(self.hidden_dims[-1], self.hidden_dims[-1], kernel_size=3, stride=1, padding=1))
+								])
+		# pytorch_total_params = sum(p.numel() for p in self.extra_encoder.parameters() if p.requires_grad)
+		# print(f"total trainable parameters (extra encoder): {round(pytorch_total_params/1e6, 2)} M")
 		
-		concat_dim = sum([2**(2-i) * self.hidden_dims[i] for i in range(len(self.hidden_dims)-1)]) + self.hidden_dims[-1] # 320 or 480 or 640
-		fused_dim = concat_dim
+		concat_dim = sum([2**(2-i) * self.hidden_dims[i] for i in range(len(self.hidden_dims)-1)]) + self.hidden_dims[-1] # 672
+		fused_dim = int(concat_dim)
+		print(f"backbone's attention channel: {fused_dim}")
 		self.cross_scale_feature_fusion = CrossScalePatchEmbed(in_dims=self.hidden_dims, fused_dim=fused_dim)
 		
 		window_size, num_heads, patch_size = 7, 8, 1
@@ -167,24 +129,42 @@ class Network(nn.Module):
 										MotionFormerBlock(dim=fused_dim, window_size=window_size, shift_size=window_size // 2, 
 														  patch_size=patch_size, num_heads=num_heads)
 									])
+		# pytorch_total_params = sum(p.numel() for p in self.translation_predictor.parameters() if p.requires_grad)
+		# print(f"total trainable parameters (transformer): {round(pytorch_total_params/1e6, 2)} M")
 		
-		self.fused_dim = fused_dim * 2
+		self.fused_dim = fused_dim * 2 # 1344
 		self.motion_out_dim = 5
-		motion_mlp_hidden_dim = int(self.fused_dim * 0.8) # 512 or 768 or 1024
+		motion_mlp_hidden_dim = 1024
 		self.motion_mlp = nn.Sequential(
 								conv(self.fused_dim + num_heads, motion_mlp_hidden_dim, kernel_size=3, stride=1, padding=1),
 								conv(motion_mlp_hidden_dim, motion_mlp_hidden_dim, kernel_size=3, stride=1, padding=1),
 								nn.Conv2d(motion_mlp_hidden_dim, self.motion_out_dim, kernel_size=1, stride=1, padding=0)
 							)
+		
+		deconv_args = {'kernel_size':2, 'stride':2, 'padding':0}
+		self.extra_fused_dim = self.fused_dim // 2
+		self.extra_upsamples = nn.ModuleList([
+									nn.Sequential(
+										deconv(self.fused_dim + self.motion_out_dim, self.extra_fused_dim + self.motion_out_dim, 
+												kernel_size=deconv_args['kernel_size'], stride=deconv_args['stride'], padding=deconv_args['padding']),
+										conv(self.extra_fused_dim + self.motion_out_dim, self.extra_fused_dim + self.motion_out_dim, kernel_size=3, stride=1, padding=1),
+										nn.Conv2d(self.extra_fused_dim + self.motion_out_dim, 960 + self.motion_out_dim, kernel_size=3, stride=1, padding=1),
+									)])
+		
+		self.extra_upsamples_act = nn.PReLU(960+ self.motion_out_dim)
+		# pytorch_total_params = sum(p.numel() for p in self.extra_upsamples.parameters() if p.requires_grad)
+		# print(f"total trainable parameters (extra decoder): {round(pytorch_total_params/1e6, 2)} M")
 				
+		self.fused_dim = 960
 		self.fused_dim1 = self.fused_dim // 2 # 320 or 480 or 640
 		self.fused_dim2 = self.fused_dim // 4 # 160 or 240 or 320
 		self.fused_dim3 = self.fused_dim // 8 # 80 or 120 or 160
-		self.fused_dims = [self.fused_dim1, self.fused_dim2, self.fused_dim3, 2*self.fused_dim1]
-		deconv_args = {'kernel_size':2, 'stride':2, 'padding':0}
+		self.fused_dims = [self.extra_fused_dim, self.fused_dim1, self.fused_dim2, self.fused_dim3]
+		self.fused_dims.append(2*self.fused_dims[0])
 		self.upsamples = nn.ModuleList([
 							# HW: 32 -> 64
-							nn.Sequential(deconv(self.fused_dim + self.motion_out_dim, self.fused_dim1 + self.motion_out_dim, 
+							nn.Sequential(
+										  deconv(self.fused_dim + self.motion_out_dim, self.fused_dim1 + self.motion_out_dim, 
 												 kernel_size=deconv_args['kernel_size'], stride=deconv_args['stride'], padding=deconv_args['padding']),
 										  conv(self.fused_dim1 + self.motion_out_dim, self.fused_dim1 + self.motion_out_dim, kernel_size=3, stride=1, padding=1),
 										  nn.Conv2d(self.fused_dim1 + self.motion_out_dim, self.fused_dim1 + self.motion_out_dim, kernel_size=3, stride=1, padding=1),
@@ -224,9 +204,12 @@ class Network(nn.Module):
 							conv(4 * hidden_dim, 4 * hidden_dim, kernel_size=3, stride=1, padding=1),
 						)
 		# bottleneck
+		window_size, num_heads, patch_size = 8, 8, 1
 		self.bottleneck = nn.ModuleList([
-								TransformerLayer(dim=4*hidden_dim, num_heads=8),
-								TransformerLayer(dim=4*hidden_dim, num_heads=8)
+								RefineBottleneck(dim=4*hidden_dim, window_size=window_size, shift_size=0, 
+													patch_size=patch_size, num_heads=num_heads),
+								RefineBottleneck(dim=4*hidden_dim, window_size=window_size, shift_size=window_size // 2, 
+													patch_size=patch_size, num_heads=num_heads)
 							])
 		# decoder
 		self.up1 = nn.Sequential( # [32 -> 64]
@@ -248,27 +231,6 @@ class Network(nn.Module):
 							conv(1 * hidden_dim, 3, kernel_size=3, stride=1, padding=1),
 						)
 
-	def visualize_feature(self, feat, scale_level, save_path="feat_visualize.png"):
-		feat = feat.detach()
-		feat = torch.mean(feat, dim=1)
-		feat = feat[:, None, :, :]
-		feat = (feat - feat.min()) / feat.max()
-
-		feat = Trainer.convert_tensor_to_np(feat, [0.], [1.])
-		feat = feat[8,:,:,0]
-		
-		feat_pil = Image.fromarray(feat)
-		feat_pil = feat_pil.convert('L')
-		feat_pil.save(f"scale_{scale_level}_{save_path}")
-
-	def visualize_tensor(self, tensor, save_path="vis_tensor.png"):
-		tensor = Trainer.convert_tensor_to_np(tensor)
-		tensor = tensor[8]
-		tensor_pil = Image.fromarray(tensor)
-		tensor_pil = tensor_pil.convert('RGB')
-		tensor_pil.save(f"{save_path}")
-
-
 	def forward(self, im0, im1):
 		'''
 		im0, im1: tensor [B,3,H,W], float32, normalized to [0, 1]
@@ -280,7 +242,7 @@ class Network(nn.Module):
 		im0_warped_list = []
 		im1_warped_list = []
 		# downscale input frames
-		for scale in range(self.pyramid_level-1):
+		for scale in range(len(self.hidden_dims)-1):
 			im0_down = F.interpolate(im0_list[-1], scale_factor=0.5, mode='bilinear', align_corners=True)
 			im1_down = F.interpolate(im1_list[-1], scale_factor=0.5, mode='bilinear', align_corners=True)
 			im0_list.append(im0_down)
@@ -292,6 +254,13 @@ class Network(nn.Module):
 		for scale in range(self.pyramid_level):
 			feat = self.feat_extracts[scale](feat)
 			feat_scale_level.append(feat)
+
+		for blk in self.extra_encoder:
+			feat = blk(feat)
+			feat_scale_level.append(feat)
+
+		# for i in feat_scale_level:
+		# 	print(i.size())
 
 		# cross scale feature fusion
 		feat, h, w = self.cross_scale_feature_fusion(feat_scale_level)
@@ -328,8 +297,25 @@ class Network(nn.Module):
 		feat2 = flow_warp(feat[:, self.fused_dims[0]:self.fused_dims[-1]], opt_flow_1)
 		feat = torch.cat([feat1, feat2, out], dim=1)
 
-		backbone_decoder_feats = []
+		for scale, blk in enumerate(self.extra_upsamples):
+			feat = blk(feat)
+			out = feat[:, -self.motion_out_dim:] 
+			opt_flow_0 = out[:, :2]
+			opt_flow_1 = out[:, 2:4]
+			occ_mask1 = torch.sigmoid(out[:, 4].unsqueeze(1))
+			occ_mask2 = 1 - occ_mask1
 
+			I_t_0 = flow_warp(im0_list[-(scale+2)], opt_flow_0)
+			I_t_1 = flow_warp(im1_list[-(scale+2)], opt_flow_1)
+			I_t = occ_mask1 * I_t_0 + occ_mask2 * I_t_1
+			im0_warped_list.insert(0, I_t_0)
+			im1_warped_list.insert(0, I_t_1)
+			im_t_list.insert(0, I_t)
+
+			feat = self.extra_upsamples_act(feat)
+
+
+		backbone_decoder_feats = []
 		# upscale motion along with feature
 		for i, scale in enumerate(reversed(range(self.pyramid_level-1))):
 			# forward features to get finer resolution
@@ -358,11 +344,14 @@ class Network(nn.Module):
 		feat2 = self.down2(torch.cat([feat1, backbone_decoder_feats.pop()], dim=1)) 
 		feat3 = self.down3(torch.cat([feat2, backbone_decoder_feats.pop()], dim=1)) 
 		# bottleneck
-		_, _, h, w = feat3.size()
-		feat3 = einops.rearrange(feat3, 'B C H W -> B (H W) C') # patch embedding
-		for blk in self.bottleneck:
+		feat3 = einops.rearrange(feat3, 'B C H W -> B H W C')
+		_, h, w, _ = feat3.size()
+		for k, blk in enumerate(self.bottleneck):
 			feat3 = blk(feat3)
-		feat3 = einops.rearrange(feat3, 'B (H W) C -> B C H W', H=h) # patch unembedding
+			if k == 0:
+				feat3 = einops.rearrange(feat3, 'B (H W) C -> B H W C', H=h)
+			else:
+				feat3 = einops.rearrange(feat3, 'B (H W) C -> B C H W', H=h)
 		# decoder
 		feat2_ = self.up1(feat3) # 128
 		feat1_ = self.up2(torch.cat([feat2_, feat2], dim=1))
