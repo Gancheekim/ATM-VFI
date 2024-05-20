@@ -6,18 +6,15 @@ import os
 import warnings
 warnings.filterwarnings('ignore')
 
-from trainer import Trainer
+from finetune_trainer import Trainer
 from vimeo_dataset import VimeoDataset
 from X4K_dataset import X_Train, X_Test
 from snu_dataset import SNUDataset
 
 ''' import model '''
-# from network37 import Network
 # from network55 import Network
-# from network57 import Network
-# from network57_small import Network
-from network57_small2 import Network
-
+from network57 import Network
+# from network57_small2 import Network
 
 def load_model_checkpoint(model, checkpoint_path, strict=True):
 	print(f'--- loading from checkpoint: {checkpoint_path} ---')
@@ -54,20 +51,19 @@ if __name__ == "__main__":
 	parser.add_argument("--debug", action="store_true", default=False)
 	parser.add_argument("--debug_iter", type=int, default=5) # iteration use for debug mode
 
-	parser.add_argument("--batch_size", type=int, default=32)
-	parser.add_argument("--init_lr", type=float, default=2e-4)
-	parser.add_argument("--last_lr", type=float, default=1e-4)
+	parser.add_argument("--batch_size", type=int, default=16)
+	parser.add_argument("--init_lr", type=float, default=4e-5)
+	parser.add_argument("--last_lr", type=float, default=1e-5)
 	parser.add_argument("--weight_decay", type=float, default=1e-4)
-	parser.add_argument("--num_epoch", type=int, default=150)
+	parser.add_argument("--num_epoch", type=int, default=300)
 	parser.add_argument("--device", type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
 	parser.add_argument("--vimeo_path", type=str, default="/home/kim/ssd/vimeo_triplet/")
-	parser.add_argument("--dataset", type=str, default="vimeo90k", choices=["vimeo90k", "X4k", "joint"])
 	parser.add_argument('--viz', action='store_true', default=False)
 	parser.add_argument('--resume_train', action='store_true', default=False)
-	parser.add_argument('--new_optimizer', action='store_true', default=True)
+	parser.add_argument('--new_optimizer', action='store_true', default=False)
 
-	parser.add_argument("--model_checkpoints", type=str, default="./finetune_model_checkpoints65/")
-	parser.add_argument("--visualization_path", type=str, default="./finetune_visualization65/")
+	parser.add_argument("--model_checkpoints", type=str, default="./finetune_model_checkpoints67/")
+	parser.add_argument("--visualization_path", type=str, default="./finetune_visualization67/")
 
 	args = parser.parse_args()
 
@@ -88,61 +84,66 @@ if __name__ == "__main__":
 	#		choose model
 	# --------------------------	
 	model = Network()
-
 	pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 	print(f"total trainable parameters: {round(pytorch_total_params/1e6, 2)} M")
 
-	isLoadCheckpoint = False
+	isLoadCheckpoint = True
 	if isLoadCheckpoint:
-		# network57: pretrained local part
-		param = "./finetune_model_checkpoints59/epoch_136_psnr_36.2891.pt"
-		# network57_small2: pretrained local part
-		# param = "./finetune_model_checkpoints64/epoch_146_psnr_35.82.pt"
+		# network57: to finetune on pretrained local and global part
+		# param = "./finetune_model_checkpoints60/epoch_75_psnr_30.2463.pt" # pretrain global on X4k
+
+		# network57: to finetune from final checkpoint on perception quality
+		param = "./finetune_model_checkpoints62/vimeo_epoch_254_psnr_36.3847.pt"
+  
+		# network57_small2: to finetune on pretrained local and global part
+		# param = "./finetune_model_checkpoints65/epoch_225_psnr_30.1287.pt"		
 
 		optim_checkpt = load_model_checkpoint(model, param, strict=False)
 		if args.new_optimizer:
 			optim_checkpt = None
-
 	else:
 		optim_checkpt = None
 
 	# --------------------------
 	#		config model
 	# --------------------------
-	# phase 1: pretrain only local part
-	# model.global_motion = False
-
-	# phase 2: pretrain only global part
+	# phase 3: joint finetuning local and global part
 	model.global_motion = True
-	model.__freeze_local_motion__()
+	model.__finetune_local_motion__()
+	model.__finetune_global_motion__()
 
 	# --------------------------
 	#		prepare data
 	# --------------------------	
-	train_dataset_big, val_dataset_big = None, None
-	train_loader_big, val_loader_big = None, None
+	train_loaders, val_loaders, batchsizes = [], [], []
 
-	if args.dataset == "vimeo90k":
-		train_dataset = VimeoDataset(dataset_name='train', path="/home/kim/ssd/vimeo_triplet/")
-		val_dataset = VimeoDataset(dataset_name='test', path="/home/kim/ssd/vimeo_triplet/")
+	# Vimeo90K
+	train_dataset = VimeoDataset(dataset_name='train', path="/home/kim/ssd/vimeo_triplet/")
+	val_dataset = VimeoDataset(dataset_name='test', path="/home/kim/ssd/vimeo_triplet/")
+	batchsizes.append(args.batch_size)
+	train_loaders.append(train_dataset)
+	val_loaders.append(val_dataset)
 
-	elif args.dataset == "X4k":
-		train_dataset = X_Train(train_data_path="/home/kim/ssd/X4K1000FPS/train", max_t_step_size=32, min_t_step_size=2, random_crop=True, patch_size=448)
-		val_dataset = SNUDataset(difficulty='hard')
+	# X4K
+	train_dataset = X_Train(train_data_path="/home/kim/ssd/X4K1000FPS/train", min_t_step_size=2, max_t_step_size=32, random_crop=True, patch_size=448)
+	val_dataset = SNUDataset(difficulty='hard') # can also be set to 'extreme'
+	batchsizes.append(5)
+	train_loaders.append(train_dataset)
+	val_loaders.append(val_dataset)
 
-	train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=8, pin_memory=True, drop_last=True)
-	val_loader = DataLoader(val_dataset, batch_size=args.batch_size if args.dataset != "X4k" else 1, shuffle=False, num_workers=8, pin_memory=True, drop_last=False)
-	
+	for i in range(len(train_loaders)):
+		train_loaders[i] = DataLoader(train_loaders[i], batch_size=batchsizes[i], shuffle=True, num_workers=8, pin_memory=True, drop_last=True)
+	for i in range(len(val_loaders)):
+		val_loaders[i] = DataLoader(val_loaders[i], batch_size=batchsizes[i] if i == 0 else 1, shuffle=False, num_workers=8, pin_memory=True, drop_last=False)
+
 	# --------------------------
 	#		config trainer
 	# --------------------------
 	trainer = Trainer(model=model, 
-				   	  train_loader=train_loader,
-					  val_loader=val_loader,
+				   	  train_loader=train_loaders,
+					  val_loader=val_loaders,
 					  normalize_mean=[0., 0., 0.], 
 					  normalize_std=[1., 1., 1.], 
 					  args=args,
-				   	  train_loader_big=train_loader_big, 
-					  val_loader_big=val_loader_big, 
 					  optim_checkpt=optim_checkpt)
-	trainer.train()
+	trainer.train() # start training

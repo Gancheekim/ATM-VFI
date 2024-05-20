@@ -5,7 +5,7 @@ from timm.models.layers import trunc_normal_
 import einops
 import math
 from flow_warp import flow_warp
-from frameattn1 import MotionFormerBlock, RefineBottleneck
+from frameattn import MotionFormerBlock, RefineBottleneck
 
 def upsample_flow(flow, upsample_factor=2, mode='bilinear'):
 	if mode == 'nearest':

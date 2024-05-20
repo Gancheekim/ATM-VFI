@@ -14,7 +14,7 @@ from loss_fn.census_loss import Ternary
 
 class Trainer():
 	def __init__(self, model, train_loader, val_loader, normalize_mean, normalize_std, args,
-			  	 train_loader_big=None, val_loader_big=None, optim_checkpt=None):
+			  	 optim_checkpt=None):
 		self.device             = torch.device(args.device)
 		self.model              = model.to(self.device)
 		self.train_loader       = train_loader
@@ -29,19 +29,20 @@ class Trainer():
 		self.normalize_std      = normalize_std
 		self.visualize_idx      = 0
 
-		self.train_loader_big = train_loader_big
-		self.val_loader_big = val_loader_big
-
 		# optimizer
 		self.useGradientAccumulate   = False
 		self.updateIter              = 2 if self.useGradientAccumulate else 1
 		self.optimizer               = torch.optim.AdamW(model.parameters(), lr=args.init_lr, weight_decay=args.weight_decay, betas=(0.9, 0.999))
 		if optim_checkpt is not None:
 			self.optimizer.load_state_dict(optim_checkpt)
-			for g in self.optimizer.param_groups:
-				g['lr'] = args.init_lr
-			self.warmup_step = 400
-			print(f'--- using saved optimizer state dict. (warmup step: {self.warmup_step}) ---')
+			if not args.resume_train:
+				for g in self.optimizer.param_groups:
+					g['lr'] = args.init_lr
+				self.warmup_step = 500
+				print(f'--- using saved optimizer state dict. (warmup step: {self.warmup_step}) ---')
+			else:
+				self.warmup_step = 50
+				print(f'--- using saved optimizer state dict. (warmup step: {self.warmup_step}) ---')
 		else:
 			self.warmup_step = 2000
 			print(f'--- NOT using saved optimizer state dict. (warmup step: {self.warmup_step}) ---')
@@ -52,9 +53,8 @@ class Trainer():
 		
 		# lr scheduler
 		self.use_lr_scheduler   = True
-		T_max                   = self.num_epoch * len(train_loader) // self.updateIter
-		if self.train_loader_big is not None:
-			T_max = T_max // 2
+		T_max = sum([len(data_loader) for data_loader in self.train_loader])
+		T_max *= self.num_epoch // (len(self.train_loader) * self.updateIter)
 		self.scheduler          = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=T_max, eta_min=args.last_lr)	
 
 		# warmup
@@ -64,8 +64,10 @@ class Trainer():
 		self.use_lap_loss           = True
 		self.use_warping_loss       = True
 		self.use_l1_loss            = False
-		self.use_perceptual_loss    = False
-		self.use_style_loss         = False
+		self.use_perceptual_loss    = True
+		self.use_style_loss         = True
+		# self.use_perceptual_loss    = False
+		# self.use_style_loss         = False
 		self.use_bidirect_warp_loss = False
 		# loss weight
 		self.lap_loss_weight           = 1.
@@ -99,11 +101,9 @@ class Trainer():
 			if self.use_style_loss:
 				self.add_metric(self.train_metric, "style_loss")
 				self.add_metric(self.val_metric, "style_loss")
-
 		if self.use_warping_loss:
 			self.add_metric(self.train_metric, "warping_loss")
 			self.add_metric(self.val_metric, "warping_loss")
-
 		if self.use_bidirect_warp_loss:
 			self.bidirect_warp_loss = Ternary(device=self.device)
 			self.add_metric(self.train_metric, "bidirect_warp_loss")
@@ -127,6 +127,7 @@ class Trainer():
 					}
 		for k,v in self.meta.items():
 			print(f"{k}: {v}")
+
 
 	@staticmethod
 	def l1_with_charbonnier(pred, label, eps=1e-6):
@@ -196,6 +197,16 @@ class Trainer():
 			if self.use_style_loss:
 				loss += loss_dict['style_loss']
 				metric_dict["style_loss"] += loss_dict['style_loss'].item()
+
+		if self.use_pose_loss:
+			loss_dict['pose_loss'] = self.pose_loss_weight * self.pose_loss(pred.clone(), label.clone())
+			loss += loss_dict['pose_loss']
+			metric_dict["pose_loss"] += loss_dict['pose_loss'].item()
+
+		if self.use_sobel_loss:
+			loss_dict['sobel_loss'] = self.sobel_loss_weight * self.sobel_loss(pred, label)
+			loss += loss_dict['sobel_loss']
+			metric_dict["sobel_loss"] += loss_dict['sobel_loss'].item()
 
 		if self.use_bidirect_warp_loss:
 			im0_list = output['im0_warped_list']
@@ -349,24 +360,10 @@ class Trainer():
 				self.scheduler.step()		
 
 	def train(self):        
-		if self.train_loader_big is None:
-			train_loader = self.train_loader
-			val_loader = self.val_loader
-			joint_dataset = False
-		else:
-			joint_dataset = True
-
 		for epoch in range(self.num_epoch):
 			print(f'epoch = {epoch}, current LR: {"{:.3e}".format(self.scheduler.get_last_lr()[0])}')
-
-			if joint_dataset:
-				swap_dataset_iter = 2
-				if epoch % swap_dataset_iter == 0:
-					train_loader = self.train_loader
-					val_loader = self.val_loader
-				else:
-					train_loader = self.train_loader_big
-					val_loader = self.val_loader_big
+			train_loader = self.train_loader[epoch % len(self.train_loader)]
+			val_loader = self.val_loader[epoch % len(self.val_loader)]
 
 			self.reset_metric(self.train_metric)
 			self.model.train()
@@ -416,8 +413,7 @@ class Trainer():
 
 					self.val_metric["psnr"] += self.cal_psnr(im2_pred, im2)
 
-					# if joint_dataset and (epoch % 2 == 0) and (self.visualize_idx < 63):
-					if not joint_dataset and (self.visualize_idx < 63) and self.viz:
+					if self.viz and (self.visualize_idx < 63):
 					# save the inference result of the first batch for visualization
 						im2_pred_ = im2_pred
 						im2_ = im2
@@ -432,15 +428,18 @@ class Trainer():
 			self.log_metrics_value()
 
 			# save model checkpoint
-			dataset_name = ""
-			if joint_dataset:
-				dataset_name = "vimeo_" if epoch % swap_dataset_iter == 0 else "x4k_"
+			if epoch % len(self.train_loader) == 0:
+				dataset_name = "vimeo_"
+			elif epoch % len(self.train_loader) == 1:
+				dataset_name = "x4k_snuEx_"
+				
 			torch.save(
 				{
-				'model_state_dict': self.model.state_dict(),
-				'optimizer_state_dict': self.optimizer.state_dict(),
-				'meta_data': self.meta,
-				'train_metric': self.train_metric,
-				'val_metric': self.val_metric,
+					'model_state_dict': self.model.state_dict(),
+					'optimizer_state_dict': self.optimizer.state_dict(),
+					'meta_data': self.meta,
+					'train_metric': self.train_metric,
+					'val_metric': self.val_metric,
 				},
-				os.path.join(self.model_checkpoints, f'{dataset_name}epoch_{epoch}_psnr_{round(self.val_metric["psnr"],4)}.pt'))
+				os.path.join(self.model_checkpoints, f'{dataset_name}epoch_{epoch}_psnr_{round(self.val_metric["psnr"],4)}.pt')
+				)

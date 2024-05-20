@@ -19,8 +19,9 @@ from pytorch_msssim import ssim_matlab
 sys.path.append('../')
 
 # from network19 import Network
-from network22 import Network
-
+# from network22 import Network
+# from network37 import Network
+from network55 import Network
 
 class YUV_Read():
     def __init__(self, filepath, h, w, format='yuv420', toRGB=True):
@@ -134,8 +135,8 @@ class YUV_Write():
     def close(self):
         self.fp.close()
 
-def load_model_checkpoint(model, checkpoint_path):
-	param = torch.load(checkpoint_path, map_location='cuda:0')
+def load_model_checkpoint(model, checkpoint_path, device='cuda:0'):
+	param = torch.load(checkpoint_path, map_location=device)
 	layers_to_remove = []
 	for key in param:
 		if "pretrained_flow_net" in key:
@@ -144,9 +145,66 @@ def load_model_checkpoint(model, checkpoint_path):
 			layers_to_remove.append(key)
 		if "translation_predictor.1.HW" in key:
 			layers_to_remove.append(key)
+
+		if "bottleneck.1.attn_mask" in key:
+			layers_to_remove.append(key)
+		if "bottleneck.1.HW" in key:
+			layers_to_remove.append(key)
+		
+		if "translation_predictor.0.attn.relative_coord_x" in key:
+			layers_to_remove.append(key)
+		if "translation_predictor.0.attn.relative_coord_y" in key:
+			layers_to_remove.append(key)
+		if "translation_predictor.1.attn.relative_coord_x" in key:
+			layers_to_remove.append(key)
+		if "translation_predictor.1.attn.relative_coord_y" in key:
+			layers_to_remove.append(key)
+
 	for key in layers_to_remove:
 		del param[key]
 	model.load_state_dict(param)
+
+	# model.translation_predictor[0].attn.register_relative_coord()
+	# model.translation_predictor[1].attn.register_relative_coord()
+	model.translation_predictor[0].attn._register_relative_coord_()
+	model.translation_predictor[1].attn._register_relative_coord_()
+     
+def load_model_checkpoint1(model, checkpoint_path, strict=False, log_meta=True):
+	checkpt = torch.load(checkpoint_path, map_location='cuda:0')
+	try:
+		param = checkpt['model_state_dict']
+		optimizer = checkpt['optimizer_state_dict']
+		meta_data = checkpt['meta_data']
+		train_metric = checkpt['train_metric']
+		val_metric = checkpt['val_metric']
+		if log_meta:
+			print(meta_data)
+			print(f'\t- train: {train_metric}\n\t- val: {val_metric}')
+	except:
+		param = checkpt
+
+	layers_to_remove = []
+	for key in param:
+		if "relative_coord" in key:
+			layers_to_remove.append(key)
+
+		if "local_motion_transformer.1.attn_mask" in key:
+			layers_to_remove.append(key)
+		if "local_motion_transformer.1.HW" in key:
+			layers_to_remove.append(key)
+		if "global_motion_transformer.1.attn_mask" in key:
+			layers_to_remove.append(key)
+		if "global_motion_transformer.1.HW" in key:
+			layers_to_remove.append(key)
+			
+	for key in layers_to_remove:
+		del param[key]
+	model.load_state_dict(param, strict=strict)
+
+	model.local_motion_transformer[0].attn._register_relative_coord_()     
+	model.local_motion_transformer[1].attn._register_relative_coord_()     
+	model.global_motion_transformer[0].attn._register_relative_coord_()     
+	model.global_motion_transformer[1].attn._register_relative_coord_()        
 
 
 parser = argparse.ArgumentParser()
@@ -155,7 +213,9 @@ parser.add_argument("--TTA", type=bool, default=False)
 # parser.add_argument("--model_checkpoints", type=str, default="../finetune_model_checkpoints3/epoch_43_psnr_35.7481.pt") # network6 -> 34.44/0.9737
 # parser.add_argument("--model_checkpoints", type=str, default="../finetune_model_checkpoints11/epoch_63_psnr_36.5063.pt") # network18 -> 35.28/0.9771
 # parser.add_argument("--model_checkpoints", type=str, default="../finetune_model_checkpoints12/epoch_62_psnr_35.9664.pt") # network19 -> 
-parser.add_argument("--model_checkpoints", type=str, default="../finetune_model_checkpoints15/epoch_98_psnr_36.0943.pt") # network22 -> , TTA: 32.593
+# parser.add_argument("--model_checkpoints", type=str, default="../finetune_model_checkpoints15/epoch_98_psnr_36.0943.pt") # network22 -> , TTA: 32.593
+# parser.add_argument("--model_checkpoints", type=str, default="../finetune_model_checkpoints24/epoch_280_psnr_36.4069.pt") # network37
+parser.add_argument("--model_checkpoints", type=str, default="../finetune_model_checkpoints52/vimeo_epoch_270_psnr_36.3497.pt") # network55
 args = parser.parse_args()
 
 
@@ -169,7 +229,8 @@ if torch.cuda.is_available():
 	torch.cuda.manual_seed(myseed)
 
 model = Network()
-load_model_checkpoint(model, args.model_checkpoints)
+# load_model_checkpoint(model, args.model_checkpoints)
+load_model_checkpoint1(model, args.model_checkpoints)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model.to(device).eval()
 pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -177,17 +238,17 @@ print(f"total trainable parameters: {round(pytorch_total_params/1e6, 2)} M")
 
 TTA = args.TTA
 name_list = [
-    (f'{args.path}/HD720p_GT/parkrun_1280x720_50.yuv', 720, 1280),
-    (f'{args.path}/HD720p_GT/shields_1280x720_60.yuv', 720, 1280),
-    (f'{args.path}/HD720p_GT/stockholm_1280x720_60.yuv', 720, 1280),
+    # (f'{args.path}/HD544p_GT/Sintel_Alley2_1280x544.yuv', 544, 1280),
+    # (f'{args.path}/HD544p_GT/Sintel_Market5_1280x544.yuv', 544, 1280),
+    # (f'{args.path}/HD544p_GT/Sintel_Temple1_1280x544.yuv', 544, 1280),
+    # (f'{args.path}/HD544p_GT/Sintel_Temple2_1280x544.yuv', 544, 1280),
+    # (f'{args.path}/HD720p_GT/parkrun_1280x720_50.yuv', 720, 1280),
+    # (f'{args.path}/HD720p_GT/shields_1280x720_60.yuv', 720, 1280),
+    # (f'{args.path}/HD720p_GT/stockholm_1280x720_60.yuv', 720, 1280),
     (f'{args.path}/HD1080p_GT/BlueSky.yuv', 1080, 1920),
     (f'{args.path}/HD1080p_GT/Kimono1_1920x1080_24.yuv', 1080, 1920),
     (f'{args.path}/HD1080p_GT/ParkScene_1920x1080_24.yuv', 1080, 1920),
-    (f'{args.path}/HD1080p_GT/sunflower_1080p25.yuv', 1080, 1920),
-    (f'{args.path}/HD544p_GT/Sintel_Alley2_1280x544.yuv', 544, 1280),
-    (f'{args.path}/HD544p_GT/Sintel_Market5_1280x544.yuv', 544, 1280),
-    (f'{args.path}/HD544p_GT/Sintel_Temple1_1280x544.yuv', 544, 1280),
-    (f'{args.path}/HD544p_GT/Sintel_Temple2_1280x544.yuv', 544, 1280),
+    (f'{args.path}/HD1080p_GT/sunflower_1080p25.yuv', 1080, 1920),   
 ]
 tot = 0.
 for data in tqdm(name_list):
@@ -202,11 +263,11 @@ for data in tqdm(name_list):
     _, lastframe = Reader.read()
     # fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
     # video = cv2.VideoWriter(name + '.mp4', fourcc, 30, (w, h))
-    for index in range(0, 100, 2):
+    for index in range(0, 100, 4):
         if 'yuv' in name:
             IMAGE1, success1 = Reader.read(index)
             gt, _ = Reader.read(index + 1)
-            IMAGE2, success2 = Reader.read(index + 2)
+            IMAGE2, success2 = Reader.read(index + 4)
             if not success2:
                 break
         else:
@@ -238,13 +299,14 @@ for data in tqdm(name_list):
 
         # inference
         with torch.no_grad():
-            pred = model.forward(I0, I1)["I_t"]
+            pred = model.inference(I0, I1)
             pred = pred[:, :, pad: -pad]
 
             if TTA:
                 I0_flip = I0.flip(2).flip(3)
                 I1_flip = I1.flip(2).flip(3)
-                pred_flip = model.forward(I0_flip, I1_flip)["I_t"]
+                # pred_flip = model.forward(I0_flip, I1_flip)["I_t"]
+                pred_flip = model.inference(I0_flip, I1_flip)
                 pred_flip = pred_flip[:, :, pad: -pad]
                 pred = (pred + pred_flip.flip(2).flip(3)) / 2
 
@@ -258,8 +320,9 @@ for data in tqdm(name_list):
             psnr = 20 * math.log10(PIXEL_MAX / math.sqrt(mse))
         else:
             psnr = skim.compare_psnr(gt, out)
+
         psnr_list.append(psnr)
-    print(f'{data[0]} ({data[0]}x{data[1]}), {np.mean(psnr_list)}')
+    print(f'{data[0]}, {np.mean(psnr_list)}, total frame: {len(psnr_list)}')
     tot += np.mean(psnr_list)
 
 print('avg psnr', tot / len(name_list))

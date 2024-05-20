@@ -14,7 +14,7 @@ import xformers
 import xformers.ops
 
 from flow_warp import flow_warp
-from frameattn1 import MotionFormerBlock, Mlp
+from frameattn import MotionFormerBlock, Mlp
 
 def upsample_flow(flow, upsample_factor=2, mode='bilinear'):
 	if mode == 'nearest':

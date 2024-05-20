@@ -11,9 +11,6 @@ from PIL import Image, ImageDraw, ImageFont
 import os
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
-sys.path.append('../')
-from trainer import Trainer
-
 
 class AverageMeter():
 	def __init__(self):
@@ -302,6 +299,20 @@ def check_dim_and_resize(tensor_list):
 	return tensor_list
 
 
+def convert_tensor_to_np(tensor, mean=[0., 0., 0.], std=[1., 1., 1.]):
+	'''
+	args:
+		tensor: tensor of shape [B, 3, H, W]
+		mean/std: list of value (len==3)
+	return:
+		normalized numpy array of shape [B, H, W, 3], dtype=np.uint8
+	'''
+	np_arr = tensor.permute(0,2,3,1).cpu().numpy()
+	for i in range(len(mean)):
+		np_arr[:,:,:,i] =  std[i]*np_arr[:,:,:,i] + mean[i]
+	np_arr *= 255
+	np_arr = np.clip(np_arr, 0, 255)
+	return np_arr.astype(np.uint8)
 
 def save_prediction(im1, im3, im2_pred, im2_label, visualize_idx, visualization_path="./vimeo90k",
 					opt_flow_0=None, opt_flow_1=None, psnr=[]):
@@ -315,11 +326,11 @@ def save_prediction(im1, im3, im2_pred, im2_label, visualize_idx, visualization_
 
 	mean = [0., 0., 0.]
 	std = [1., 1., 1.]
-	im1 = Trainer.convert_tensor_to_np(im1, mean, std)
-	im3 = Trainer.convert_tensor_to_np(im3, mean, std)
+	im1 = convert_tensor_to_np(im1, mean, std)
+	im3 = convert_tensor_to_np(im3, mean, std)
 	im_overlay = (0.5*im1 + 0.5*im3).astype(np.uint8)
-	im2_pred = Trainer.convert_tensor_to_np(im2_pred, mean, std)
-	im2_label = Trainer.convert_tensor_to_np(im2_label, mean, std)
+	im2_pred = convert_tensor_to_np(im2_pred, mean, std)
+	im2_label = convert_tensor_to_np(im2_label, mean, std)
 	if (opt_flow_0 is not None) or (opt_flow_1 is not None):
 		# visualize optical flow
 		opt_flow_0 = opt_flow_0.detach().permute(0,2,3,1).cpu().numpy()

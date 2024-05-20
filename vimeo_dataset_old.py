@@ -8,13 +8,13 @@ import numpy as np
 import random
 from torch.utils.data import Dataset
 
-cv2.setNumThreads(0)
+cv2.setNumThreads(1)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class VimeoDataset(Dataset):
-    def __init__(self, dataset_name, path, scale_factor=1, train_crop=None):
+    def __init__(self, dataset_name, path):
         self.dataset_name = dataset_name
         self.h = 256
         self.w = 448
-        self.scale_factor = scale_factor
         self.data_root = path
         self.image_root = os.path.join(self.data_root, 'sequences')
         train_fn = os.path.join(self.data_root, 'tri_trainlist.txt')
@@ -24,15 +24,6 @@ class VimeoDataset(Dataset):
         with open(test_fn, 'r') as f:
             self.testlist = f.read().splitlines()                                                    
         self.load_data()
-
-        self.train_crop = train_crop
-        if self.train_crop is None:
-            if self.scale_factor == 1:
-                self.train_crop = 256
-            elif self.scale_factor == 2:
-                self.train_crop = 384
-            else:
-                self.train_crop = 448
 
     def __len__(self):
         return len(self.meta_data)
@@ -59,11 +50,6 @@ class VimeoDataset(Dataset):
         img0 = cv2.imread(imgpaths[0])
         gt = cv2.imread(imgpaths[1])
         img1 = cv2.imread(imgpaths[2])
-
-        if self.scale_factor > 1:
-            img0 = cv2.resize(img0, (int(self.w * self.scale_factor), int(self.h * self.scale_factor)))
-            gt = cv2.resize(gt, (int(self.w * self.scale_factor), int(self.h * self.scale_factor)))
-            img1 = cv2.resize(img1, (int(self.w * self.scale_factor), int(self.h * self.scale_factor)))
         return img0, gt, img1
             
     def __getitem__(self, index):        
@@ -74,7 +60,7 @@ class VimeoDataset(Dataset):
         gt = gt[:, :, ::-1]
                 
         if 'train' in self.dataset_name:
-            img0, gt, img1 = self.aug(img0, gt, img1, self.train_crop, self.train_crop)
+            img0, gt, img1 = self.aug(img0, gt, img1, 256, 256)
             # temporal order reversal
             if random.uniform(0, 1) < 0.5:
                 img1, img0 = img0, img1
