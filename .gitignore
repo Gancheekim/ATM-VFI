@@ -5,3 +5,5 @@ finetune_model_checkpoints*/
 finetune_visualization*/
 
 data_*/
+
+*.mp4
