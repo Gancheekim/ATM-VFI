@@ -14,8 +14,8 @@ from dataset.snu_dataset import SNUDataset
 
 ''' import model '''
 sys.path.append('./network/')
-# from network_base import Network
-from network_lite import Network
+from network_base import Network
+# from network_lite import Network
 
 def load_model_checkpoint(model, checkpoint_path, strict=True):
 	print(f'--- loading from checkpoint: {checkpoint_path} ---')

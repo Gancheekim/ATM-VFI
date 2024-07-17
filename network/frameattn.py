@@ -123,7 +123,7 @@ class Mlp(nn.Module):
         return x
 
 
-class InterFrameAttention(nn.Module):
+class AttentionToMotion(nn.Module):
     def __init__(self, dim, window_size, patch_size=1, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0.):
         super().__init__()
         assert dim % num_heads == 0, f"dim {dim} should be divided by num_heads {num_heads}."
@@ -201,19 +201,19 @@ class InterFrameAttention(nn.Module):
         attn = self.attn_drop(attn)
 
         x = (attn @ v).transpose(1, 2).reshape(B, N, C)
+        x = self.proj(x)
+        x = self.proj_drop(x)
 
-        attn = attn.unsqueeze(2) # []
+        attn = attn.unsqueeze(2) 
         motion = torch.sum(attn * self.relative_coord, dim=-1)
         motion = einops.rearrange(motion, 'B C N L -> (N B) L C') # [B', W*W, 8]
         motion = self.mlp(motion)
         motion = einops.rearrange(motion, '(N B) L C -> B L (N C)', N=2)
-
-        x = self.proj(x)
-        x = self.proj_drop(x)
+        
         return x, motion
 
 
-class MotionFormerBlock(nn.Module):
+class ATMFormer(nn.Module):
     def __init__(self, dim, window_size=7, shift_size=0, patch_size=1, num_heads=8, mlp_ratio=4., bidirectional=True, qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.,
                  drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm,):
         super().__init__()
@@ -225,7 +225,7 @@ class MotionFormerBlock(nn.Module):
             self.shift_size = to_2tuple(shift_size)
         self.bidirectional = bidirectional
         self.norm1 = norm_layer(dim)
-        self.attn = InterFrameAttention(
+        self.attn = AttentionToMotion(
             dim,
             window_size,
             patch_size=patch_size,
@@ -502,7 +502,7 @@ if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
-    # fa = InterFrameAttention(dim=8, window_size=5).to(device)
+    # fa = AttentionToMotion(dim=8, window_size=5).to(device)
 
     # x = 3
     # y = 2
@@ -522,13 +522,13 @@ if __name__ == "__main__":
 
     # k = fa.forward(x1,x2,5,5)
 
-    mf1 = MotionFormerBlock(dim=feat_chan, num_heads=num_heads, window_size=window_size, shift_size=0).to(device)
+    mf1 = ATMFormer(dim=feat_chan, num_heads=num_heads, window_size=window_size, shift_size=0).to(device)
     x, x_motion1 = mf1.forward(x3, H, W, B)
 
     print(x.size())
     print(x_motion1.size())    
 
-    mf2 = MotionFormerBlock(dim=feat_chan, num_heads=num_heads, window_size=window_size, shift_size=window_size // 2).to(device)
+    mf2 = ATMFormer(dim=feat_chan, num_heads=num_heads, window_size=window_size, shift_size=window_size // 2).to(device)
     x, x_motion2= mf2.forward(x, H, W, B)
 
     print(x.size())

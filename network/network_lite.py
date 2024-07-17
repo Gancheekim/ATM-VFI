@@ -5,7 +5,7 @@ from timm.models.layers import trunc_normal_
 import einops
 import math
 from flow_warp import flow_warp
-from frameattn import MotionFormerBlock
+from frameattn import ATMFormer
 from frameattn import RefineBottleneck as SwinTransformer
 
 def upsample_flow(flow, upsample_factor=2, mode='bilinear'):
@@ -146,13 +146,13 @@ class Network(nn.Module):
 									])
 
 		self.local_motion_transformer = nn.ModuleList([
-										MotionFormerBlock(dim=self.local_motion_transformer_args["dim"], 
+										ATMFormer(dim=self.local_motion_transformer_args["dim"], 
 														  window_size=self.local_motion_transformer_args["window_size"], 
 														  shift_size=0, 
 														  patch_size=self.local_motion_transformer_args["patch_size"], 
 														  num_heads=self.local_motion_transformer_args["num_heads"], 
 														  mlp_ratio=self.local_motion_transformer_args["mlp_ratio"]),
-										MotionFormerBlock(dim=self.local_motion_transformer_args["dim"], 
+										ATMFormer(dim=self.local_motion_transformer_args["dim"], 
 														  window_size=self.local_motion_transformer_args["window_size"], 
 														  shift_size=self.local_motion_transformer_args["window_size"]//2, 
 														  patch_size=self.local_motion_transformer_args["patch_size"], 
@@ -191,13 +191,13 @@ class Network(nn.Module):
 		}
 
 		self.global_motion_transformer = nn.ModuleList([
-										MotionFormerBlock(dim=self.global_motion_transformer_args["dim"], 
+										ATMFormer(dim=self.global_motion_transformer_args["dim"], 
 														  window_size=self.global_motion_transformer_args["window_size"], 
 														  shift_size=0, 
 														  patch_size=self.global_motion_transformer_args["patch_size"], 
 														  num_heads=self.global_motion_transformer_args["num_heads"], 
 														  mlp_ratio=self.global_motion_transformer_args["mlp_ratio"]),
-										MotionFormerBlock(dim=self.global_motion_transformer_args["dim"], 
+										ATMFormer(dim=self.global_motion_transformer_args["dim"], 
 														  window_size=self.global_motion_transformer_args["window_size"], 
 														  shift_size=self.global_motion_transformer_args["window_size"]//2, 
 														  patch_size=self.global_motion_transformer_args["patch_size"], 
