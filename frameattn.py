@@ -163,6 +163,11 @@ class InterFrameAttention(nn.Module):
         vy = torch.linspace(-y, window_size-(y+1), steps=window_size)
         xx, yy = torch.meshgrid(vx, vy, indexing='xy')
         return xx, yy
+    
+    def _set_window_size_(self, window_size):
+        self.window_size = window_size * self.patch_size
+        self._register_relative_coord_()
+        self.relative_coord = self.relative_coord.to(torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -188,9 +193,7 @@ class InterFrameAttention(nn.Module):
 
         if mask is not None:
             nW = mask.shape[0] # mask: nW, N, N
-            attn = attn.view(B // nW, nW, self.num_heads, N, N) + mask.unsqueeze(
-                1
-            ).unsqueeze(0)
+            attn = attn.view(B // nW, nW, self.num_heads, N, N) + mask.unsqueeze(1).unsqueeze(0)
             attn = attn.view(-1, self.num_heads, N, N)
             attn = attn.softmax(dim=-1)
         else:
@@ -248,6 +251,16 @@ class MotionFormerBlock(nn.Module):
             m.weight.data.normal_(0, math.sqrt(2.0 / fan_out))
             if m.bias is not None:
                 m.bias.data.zero_()
+
+    def _set_window_size_(self, window_size, shift_size=0):
+        self.window_size = window_size
+        if not isinstance(self.window_size, (tuple, list)):
+            self.window_size = to_2tuple(window_size)
+        self.shift_size = shift_size
+        if not isinstance(self.shift_size, (tuple, list)):
+            self.shift_size = to_2tuple(shift_size)
+
+        self.attn._set_window_size_(self.window_size[0])
 
     def forward(self, x, H, W, B):
         """

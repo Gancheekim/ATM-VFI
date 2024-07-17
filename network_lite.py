@@ -89,13 +89,17 @@ class Network(nn.Module):
 	def __init__(self, global_motion=True, ensemble_global_motion=False):
 		super(Network, self).__init__()	
 		self.pyramid_level = 4
-		self.hidden_dims = [16, 32, 64, 96]
+		# self.hidden_dims = [12, 16, 32, 64]
+		# self.hidden_dims = [16, 32, 64, 128]
+		# self.hidden_dims = [24, 48, 96, 192]
+		self.hidden_dims = [16, 32, 64, 96] # (6 layer)
+		# self.hidden_dims = [16, 32, 56, 80] # (11 layer)
 		assert len(self.hidden_dims) == self.pyramid_level
 
 		self.global_motion = global_motion
 		self.ensemble_global_motion = ensemble_global_motion
 				
-		# pyramid feature extraction	
+		# pyramid feature extraction
 		self.feat_extracts = nn.ModuleList([])
 		for i in range(self.pyramid_level):
 			if i == 0:
@@ -112,46 +116,54 @@ class Network(nn.Module):
 		# ---------------------------------
 		#		local motion part
 		# ---------------------------------
+		concat_dim = self.hidden_dims[-1] + self.hidden_dims[-2] + 2*self.hidden_dims[-3]
+		fused_dim = concat_dim
+		self.cross_scale_feature_fusion = CrossScalePatchEmbed(in_dims=self.hidden_dims[1:], fused_dim=fused_dim)
+
 		self.local_motion_transformer_args = {
 			"window_size": 8,
 			"num_heads": 8,
 			"patch_size": 1,
 			"dim": fused_dim,
 			"enhance_window": 8,
+			"mlp_ratio": 2,
 		}
-		concat_dim = self.hidden_dims[-1] + self.hidden_dims[-2] + 2*self.hidden_dims[-3]
-		fused_dim = concat_dim
-		self.cross_scale_feature_fusion = CrossScalePatchEmbed(in_dims=self.hidden_dims[1:], fused_dim=fused_dim)
+
 		# feature enhancement swin transformer
 		self.feat_enhance_transformer = nn.ModuleList([
 										SwinTransformer(dim=self.local_motion_transformer_args["dim"], 
 														window_size=self.local_motion_transformer_args["enhance_window"], 
 														shift_size=0, 
 														patch_size=self.local_motion_transformer_args["patch_size"], 
-														num_heads=self.local_motion_transformer_args["num_heads"], ),
+														num_heads=self.local_motion_transformer_args["num_heads"], 
+														mlp_ratio=self.local_motion_transformer_args["mlp_ratio"]),
 										SwinTransformer(dim=self.local_motion_transformer_args["dim"], 
 														window_size=self.local_motion_transformer_args["enhance_window"], 
 														shift_size=self.local_motion_transformer_args["enhance_window"]//2, 
 														patch_size=self.local_motion_transformer_args["patch_size"], 
-														num_heads=self.local_motion_transformer_args["num_heads"], )
+														num_heads=self.local_motion_transformer_args["num_heads"], 
+														mlp_ratio=self.local_motion_transformer_args["mlp_ratio"])
 									])
-		# local motion transformer
+
 		self.local_motion_transformer = nn.ModuleList([
 										MotionFormerBlock(dim=self.local_motion_transformer_args["dim"], 
 														  window_size=self.local_motion_transformer_args["window_size"], 
 														  shift_size=0, 
 														  patch_size=self.local_motion_transformer_args["patch_size"], 
-														  num_heads=self.local_motion_transformer_args["num_heads"], ),
+														  num_heads=self.local_motion_transformer_args["num_heads"], 
+														  mlp_ratio=self.local_motion_transformer_args["mlp_ratio"]),
 										MotionFormerBlock(dim=self.local_motion_transformer_args["dim"], 
 														  window_size=self.local_motion_transformer_args["window_size"], 
 														  shift_size=self.local_motion_transformer_args["window_size"]//2, 
 														  patch_size=self.local_motion_transformer_args["patch_size"], 
-														  num_heads=self.local_motion_transformer_args["num_heads"], )
+														  num_heads=self.local_motion_transformer_args["num_heads"], 
+														  mlp_ratio=self.local_motion_transformer_args["mlp_ratio"])
 									])
 		
 		self.fused_dim = fused_dim * 2
 		self.motion_out_dim = 5
-		motion_mlp_hidden_dim = int(self.fused_dim * 0.5)
+		motion_mlp_hidden_dim = int(self.fused_dim * 0.5) # 280
+		# print(motion_mlp_hidden_dim)
 		self.local_motion_mlp = nn.Sequential(
 								conv(self.fused_dim + self.local_motion_transformer_args["num_heads"], motion_mlp_hidden_dim, kernel_size=3, stride=1, padding=1),
 								conv(motion_mlp_hidden_dim, motion_mlp_hidden_dim, kernel_size=3, stride=1, padding=1),
@@ -161,6 +173,15 @@ class Network(nn.Module):
 		# ---------------------------------
 		#		global motion part
 		# ---------------------------------
+		last_feat_dim = self.hidden_dims[-1] + 32 # 128
+		self.last_feat_extract = nn.Sequential(
+									conv(self.hidden_dims[-1], last_feat_dim, kernel_size=3, stride=2, padding=1),
+									conv(last_feat_dim, last_feat_dim, kernel_size=3, stride=1, padding=1)
+								)
+		
+		concat_dim = last_feat_dim + self.hidden_dims[-1] + 2*self.hidden_dims[-2]
+		self.global_feature_fusion = CrossScalePatchEmbed(in_dims=[self.hidden_dims[-2], self.hidden_dims[-1], last_feat_dim], fused_dim=concat_dim)
+
 		self.global_motion_transformer_args = {
 			"window_size": 12,
 			"num_heads": 8,
@@ -168,14 +189,7 @@ class Network(nn.Module):
 			"dim": concat_dim,
 			"mlp_ratio": 2,
 		}
-		last_feat_dim = self.hidden_dims[-1] + 32 # 128
-		self.last_feat_extract = nn.Sequential(
-									conv(self.hidden_dims[-1], last_feat_dim, kernel_size=3, stride=2, padding=1),
-									conv(last_feat_dim, last_feat_dim, kernel_size=3, stride=1, padding=1)
-								)
-		concat_dim = last_feat_dim + self.hidden_dims[-1] + 2*self.hidden_dims[-2]
-		self.global_feature_fusion = CrossScalePatchEmbed(in_dims=[self.hidden_dims[-2], self.hidden_dims[-1], last_feat_dim], fused_dim=concat_dim)
-		# global motion transformer
+
 		self.global_motion_transformer = nn.ModuleList([
 										MotionFormerBlock(dim=self.global_motion_transformer_args["dim"], 
 														  window_size=self.global_motion_transformer_args["window_size"], 
@@ -197,14 +211,11 @@ class Network(nn.Module):
 								nn.Conv2d(motion_mlp_hidden_dim, self.motion_out_dim, kernel_size=1, stride=1, padding=0)
 							)
 				
-		# ------------------------------
-		#	pyramid upsample module
-		# ------------------------------
-		deconv_args = {'kernel_size':2, 'stride':2, 'padding':0}
 		self.fused_dim1 = self.fused_dim // 2 # 320 or 480 or 640
 		self.fused_dim2 = self.fused_dim // 4 # 160 or 240 or 320
 		self.fused_dim3 = self.fused_dim // 8 # 80 or 120 or 160
 		self.fused_dims = [self.fused_dim1, self.fused_dim2, self.fused_dim3, 2*self.fused_dim1]
+		deconv_args = {'kernel_size':2, 'stride':2, 'padding':0}
 		self.upsamples = nn.ModuleList([
 							# (H/8,W/8) -> (H/4,W/4)
 							nn.Sequential(deconv(self.fused_dim + self.motion_out_dim, self.fused_dim1 + self.motion_out_dim, 
