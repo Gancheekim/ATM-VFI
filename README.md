@@ -29,7 +29,7 @@ We will release the checkpoints after the final paper decision.
 |Pct    |TBA |51.56|
 
 ## Evalution
-We evaluate our method using the `benchmark` scripts provided by [RIFE](https://github.com/hzwer/ECCV2022-RIFE/tree/main) and [EMA-VFI](https://github.com/MCG-NJU/EMA-VFI/tree/main) for consistency. 
+We evaluate our method using the `benchmark` scripts provided by [RIFE](https://github.com/hzwer/ECCV2022-RIFE/tree/main), [EMA-VFI](https://github.com/MCG-NJU/EMA-VFI/tree/main) and [AMT](https://github.com/MCG-NKU/AMT?tab=readme-ov-file) for consistency. 
 - Vimeo90K
     ```
     cd benchmark
@@ -50,6 +50,13 @@ We evaluate our method using the `benchmark` scripts provided by [RIFE](https://
     cd benchmark
     python3 test_xiph.py --root <path to Xiph dataset folder> --ckpt <path to model checkpoint>
     ```
+
+## Training/Fine-tuning
+The first 2 phases of the training procedure (stated in our paper) utilize `train.py` and `trainer.py`, while the last 2 phases utilize `finetune.py` and `finetune_trainer.py`.
+- Phase 1: run `train.py` and set the argument `dataset` as `vimeo90k`, the other training hyperparameters can be set as you wish (batch size, learning rate, no. of epoch, etc.). Reminder: please make sure to uncomment `model.global_motion = False`.
+- Phase 2: run `train.py`, set the argument `dataset` as `X4k`, and remember to set the variable `isLoadCheckpoint` to `True` and change `param` to the checkpoint of Phase 1. Reminder: please make sure to uncomment `model.global_motion = True` and `model.__freeze_local_motion__()`.
+- Phase 3: run `finetune.py`, change `param` to the checkpoint of Phase 2. For more tweaking, please trace the source code.
+- Phase 4: run `finetune.py`, change `param` to the checkpoint of Phase 3.
 
 ## Citation
 TBA
