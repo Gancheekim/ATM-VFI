@@ -7,7 +7,6 @@ In this repository, we present a versatile VFI work, utilizing the Attention-to-
 
 ## Architecture Overview
 <img src="./asset/model-overview-ver3.png" alt="drawing" height="260"/>
-<br />
 
 ## Attention-to-Motion
 <img src="./asset/atm_working-example.png" alt="drawing" height="265"/>&nbsp;&nbsp;<img src="./asset/ATMFormer_ver6.png" alt="drawing" height="265"/>
@@ -21,10 +20,16 @@ python3 demo_2x.py --model_type <select base or lite> --ckpt <path to model chec
 ```
 
 ## Pretrained checkpoints
-TBA, we will release the checkpoints after the final paper decision.
+We will release the checkpoints after the final paper decision.
+|Version|Link|Param (M)|
+|-------|----|---------|
+|Base   |TBA |51.56|
+|Lite   |TBA |11.98|
+|Pct    |TBA |51.56|
+
 
 ## Evalution
-We evaluate our method using the `benchmark` scripts provided by [RIFE]() and [EMA-VFI] for consistency. 
+We evaluate our method using the `benchmark` scripts provided by [RIFE](https://github.com/hzwer/ECCV2022-RIFE/tree/main) and [EMA-VFI](https://github.com/MCG-NJU/EMA-VFI/tree/main) for consistency. 
 
 ## Citation
 TBA
