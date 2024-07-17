@@ -51,7 +51,7 @@ def load_model_checkpoint(model, checkpoint_path, strict=True):
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--model_type", type=str, default="base", choices=["base", "lite"])
-	parser.add_argument("--model_checkpoints", type=str, default="../research3_ckpt/atm-vfi-base-pct.pt") # atm-vfi-base.pt/atm-vfi-lite.pt/atm-vfi-base-pct.pt
+	parser.add_argument("--ckpt", type=str, default="../research3_ckpt/atm-vfi-base-pct.pt") # atm-vfi-base.pt/atm-vfi-lite.pt/atm-vfi-base-pct.pt
 	parser.add_argument("--frame0", type=str, required=True)
 	parser.add_argument("--frame1", type=str, required=True)
 	parser.add_argument("--out", type=str, default="output_interpolation.png")
@@ -64,7 +64,7 @@ if __name__ == "__main__":
 	else:
 		raise NotImplementedError
 
-	load_model_checkpoint(model, args.model_checkpoints)
+	load_model_checkpoint(model, args.ckpt)
 	device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 	model.to(device).eval()
 	# enable/disable global motion estimation, default=True

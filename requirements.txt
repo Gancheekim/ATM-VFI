@@ -1,0 +1,11 @@
+opencv-python==4.8.0.76
+torch==2.0.1+cu118
+torchvision==0.15.2+cu118
+numpy==1.24.4
+pillow==9.0.1
+imageio==2.31.3
+flow_vis==0.1
+tqdm==4.65.2
+pytorch_warmup==0.1.1
+#ultralytics== 8.1.2
+#easy_ViTPose==1.0
