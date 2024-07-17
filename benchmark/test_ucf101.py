@@ -12,7 +12,7 @@ from pytorch_msssim import ssim_matlab
 sys.path.append('../')
 """ different network """
 from network_base import Network
-# from network57_small2 import Network
+# from network_lite import Network
 
 warnings.filterwarnings('ignore')
 torch.set_grad_enabled(False)
@@ -56,9 +56,9 @@ def load_model_checkpoint(model, checkpoint_path, strict=True):
 parser = argparse.ArgumentParser()
 parser.add_argument("--path", type=str, default="/home/kim/Desktop/ssd/UCF101-triplet/ucf101_interp_ours")
 parser.add_argument("--TTA", type=bool, default=False)
-parser.add_argument("--model_checkpoints", type=str, default="../../research3_ckpt/ours-final/vimeo_epoch_254_psnr_36.3847.pt") # network57: 30.62(hard) (final)
-# parser.add_argument("--model_checkpoints", type=str, default="../finetune_model_checkpoints66/vimeo_epoch_274_psnr_35.9854.pt") # network57_small2
-# parser.add_argument("--model_checkpoints", type=str, default="../finetune_model_checkpoints81/vimeo_epoch_98_psnr_35.9552.pt") # network57 (final-perception-new)
+parser.add_argument("--model_checkpoints", type=str, default="../../research3_ckpt/ours-final/vimeo_epoch_254_psnr_36.3847.pt") # network_base (final)
+# parser.add_argument("--model_checkpoints", type=str, default="../finetune_model_checkpoints66/vimeo_epoch_274_psnr_35.9854.pt") # network_lite
+# parser.add_argument("--model_checkpoints", type=str, default="../finetune_model_checkpoints81/vimeo_epoch_98_psnr_35.9552.pt") # network_base (final-perception-new)
 
 args = parser.parse_args()
 

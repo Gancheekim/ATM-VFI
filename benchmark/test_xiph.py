@@ -13,7 +13,7 @@ from psnr_ssim import calculate_psnr, calculate_ssim
 sys.path.append('../')
 """ different network """
 from network_base import Network
-# from network57_small2 import Network
+# from network_lite import Network
 
 myseed = 22112023
 torch.manual_seed(myseed)
@@ -57,9 +57,9 @@ parser.add_argument('-c', '--config', default='cfgs/AMT-S.yaml')
 parser.add_argument('-p', '--ckpt', default='pretrained/amt-s.pth') 
 parser.add_argument('-r', '--root', default='/home/kim/Desktop/ssd/xiph') 
 parser.add_argument("--TTA", type=bool, default=False)
-parser.add_argument("--model_checkpoints", type=str, default="../../research3_ckpt/ours-final/vimeo_epoch_254_psnr_36.3847.pt") # network57: 30.62(hard) (final)
-# parser.add_argument("--model_checkpoints", type=str, default="../finetune_model_checkpoints66/vimeo_epoch_274_psnr_35.9854.pt") # network57_small2
-# parser.add_argument("--model_checkpoints", type=str, default="../finetune_model_checkpoints81/vimeo_epoch_98_psnr_35.9552.pt") # network57 (final-perception-new)
+parser.add_argument("--model_checkpoints", type=str, default="../../research3_ckpt/ours-final/vimeo_epoch_254_psnr_36.3847.pt") # network_base (final)
+# parser.add_argument("--model_checkpoints", type=str, default="../finetune_model_checkpoints66/vimeo_epoch_274_psnr_35.9854.pt") # network_lite
+# parser.add_argument("--model_checkpoints", type=str, default="../finetune_model_checkpoints81/vimeo_epoch_98_psnr_35.9552.pt") # network_base (final-perception-new)
 
 args = parser.parse_args()
 root = args.root

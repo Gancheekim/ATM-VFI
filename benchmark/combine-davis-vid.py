@@ -5,7 +5,7 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--TTA", type=bool, default=False)
-parser.add_argument("--model_checkpoints", type=str, default="../finetune_model_checkpoints62/vimeo_epoch_254_psnr_36.3847.pt") # network57
+parser.add_argument("--model_checkpoints", type=str, default="../finetune_model_checkpoints62/vimeo_epoch_254_psnr_36.3847.pt") # network_base
 parser.add_argument("--path", type=str, default="/home/kim/ssd/DAVIS-2017-Unsupervised-trainval-480p/DAVIS/JPEGImages/480p/")
 parser.add_argument("--id", type=str, default="breakdance-flare")
 

@@ -13,8 +13,8 @@ from snu_dataset import SNUDataset
 
 ''' import model '''
 # from network55 import Network
-from network57 import Network
-# from network57_small2 import Network
+from network_base import Network
+# from network_lite import Network
 
 def load_model_checkpoint(model, checkpoint_path, strict=True):
 	print(f'--- loading from checkpoint: {checkpoint_path} ---')
@@ -89,13 +89,13 @@ if __name__ == "__main__":
 
 	isLoadCheckpoint = True
 	if isLoadCheckpoint:
-		# network57: to finetune on pretrained local and global part
+		# network_base: to finetune on pretrained local and global part
 		# param = "./finetune_model_checkpoints60/epoch_75_psnr_30.2463.pt" # pretrain global on X4k
 
-		# network57: to finetune from final checkpoint on perception quality
+		# network_base: to finetune from final checkpoint on perception quality
 		param = "./finetune_model_checkpoints62/vimeo_epoch_254_psnr_36.3847.pt"
   
-		# network57_small2: to finetune on pretrained local and global part
+		# network_lite: to finetune on pretrained local and global part
 		# param = "./finetune_model_checkpoints65/epoch_225_psnr_30.1287.pt"		
 
 		optim_checkpt = load_model_checkpoint(model, param, strict=False)

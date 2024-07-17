@@ -12,11 +12,8 @@ from X4K_dataset import X_Train, X_Test
 from snu_dataset import SNUDataset
 
 ''' import model '''
-# from network37 import Network
-# from network55 import Network
-# from network57 import Network
-# from network57_small import Network
-from network57_small2 import Network
+# from network_base import Network
+from network_lite import Network
 
 
 def load_model_checkpoint(model, checkpoint_path, strict=True):
@@ -94,9 +91,9 @@ if __name__ == "__main__":
 
 	isLoadCheckpoint = False
 	if isLoadCheckpoint:
-		# network57: pretrained local part
+		# network_base: pretrained local part
 		param = "./finetune_model_checkpoints59/epoch_136_psnr_36.2891.pt"
-		# network57_small2: pretrained local part
+		# network_lite: pretrained local part
 		# param = "./finetune_model_checkpoints64/epoch_146_psnr_35.82.pt"
 
 		optim_checkpt = load_model_checkpoint(model, param, strict=False)
