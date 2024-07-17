@@ -6,12 +6,11 @@ In this repository, we present a versatile VFI work, utilizing the Attention-to-
 - Video demo: [Youtube](https://www.youtube.com/watch?v=bSdBEfe9haM)
 
 ## Architecture Overview
-<img src="./asset/model-overview-ver3.png" alt="drawing" height="300"/>
+<img src="./asset/model-overview-ver3.png" alt="drawing" height="260"/>
 <br />
 
 ## Attention-to-Motion
-<img src="./asset/atm_working-example.png" alt="drawing" height="300"/>&nbsp;&nbsp;&nbsp;&nbsp;
-<img src="./asset/ATMFormer_ver6.png" alt="drawing" height="300"/>
+<img src="./asset/atm_working-example.png" alt="drawing" height="265"/>&nbsp;&nbsp;<img src="./asset/ATMFormer_ver6.png" alt="drawing" height="265"/>
 
 ## Dependencies
 We provide the dependencies in `requirements.txt`.
