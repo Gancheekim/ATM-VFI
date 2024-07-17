@@ -56,14 +56,14 @@ def load_model_checkpoint(model, checkpoint_path, strict=True):
 parser = argparse.ArgumentParser()
 parser.add_argument("--path", type=str, default="/home/kim/Desktop/ssd/UCF101-triplet/ucf101_interp_ours")
 parser.add_argument("--TTA", type=bool, default=False)
-parser.add_argument("--model_checkpoints", type=str, default="../../research3_ckpt/ours-final/vimeo_epoch_254_psnr_36.3847.pt") # network_base (final)
-# parser.add_argument("--model_checkpoints", type=str, default="../finetune_model_checkpoints66/vimeo_epoch_274_psnr_35.9854.pt") # network_lite
-# parser.add_argument("--model_checkpoints", type=str, default="../finetune_model_checkpoints81/vimeo_epoch_98_psnr_35.9552.pt") # network_base (final-perception-new)
+parser.add_argument("--ckpt", type=str, default="../../research3_ckpt/ours-final/vimeo_epoch_254_psnr_36.3847.pt") # network_base (final)
+# parser.add_argument("--ckpt", type=str, default="../finetune_ckpt66/vimeo_epoch_274_psnr_35.9854.pt") # network_lite
+# parser.add_argument("--ckpt", type=str, default="../finetune_ckpt81/vimeo_epoch_98_psnr_35.9552.pt") # network_base (final-perception-new)
 
 args = parser.parse_args()
 
 model = Network()
-load_model_checkpoint(model, args.model_checkpoints)
+load_model_checkpoint(model, args.ckpt)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model.to(device).eval()
 
