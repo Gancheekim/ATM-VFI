@@ -3,6 +3,7 @@ import torch
 from torch.utils.data import DataLoader
 import torch.nn as nn
 import os
+import sys
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -12,8 +13,9 @@ from dataset.X4K_dataset import X_Train, X_Test
 from dataset.snu_dataset import SNUDataset
 
 ''' import model '''
-from network_base import Network
-# from network_lite import Network
+sys.path.append('./network/')
+# from network_base import Network
+from network_lite import Network
 
 
 def load_model_checkpoint(model, checkpoint_path, strict=True):
