@@ -7,9 +7,9 @@ import warnings
 warnings.filterwarnings('ignore')
 
 from finetune_trainer import Trainer
-from vimeo_dataset import VimeoDataset
-from X4K_dataset import X_Train, X_Test
-from snu_dataset import SNUDataset
+from dataset.vimeo_dataset import VimeoDataset
+from dataset.X4K_dataset import X_Train, X_Test
+from dataset.snu_dataset import SNUDataset
 
 ''' import model '''
 # from network55 import Network

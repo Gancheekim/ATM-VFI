@@ -7,13 +7,13 @@ import warnings
 warnings.filterwarnings('ignore')
 
 from trainer import Trainer
-from vimeo_dataset import VimeoDataset
-from X4K_dataset import X_Train, X_Test
-from snu_dataset import SNUDataset
+from dataset.vimeo_dataset import VimeoDataset
+from dataset.X4K_dataset import X_Train, X_Test
+from dataset.snu_dataset import SNUDataset
 
 ''' import model '''
-# from network_base import Network
-from network_lite import Network
+from network_base import Network
+# from network_lite import Network
 
 
 def load_model_checkpoint(model, checkpoint_path, strict=True):
@@ -51,7 +51,7 @@ if __name__ == "__main__":
 	parser.add_argument("--debug", action="store_true", default=False)
 	parser.add_argument("--debug_iter", type=int, default=5) # iteration use for debug mode
 
-	parser.add_argument("--batch_size", type=int, default=32)
+	parser.add_argument("--batch_size", type=int, default=24)
 	parser.add_argument("--init_lr", type=float, default=2e-4)
 	parser.add_argument("--last_lr", type=float, default=1e-4)
 	parser.add_argument("--weight_decay", type=float, default=1e-4)
