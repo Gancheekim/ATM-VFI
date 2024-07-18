@@ -16,9 +16,22 @@ We provide the dependencies in `requirements.txt`.
 
 ## Demo
 For 2x interpolation, run the command below:
-```
-python3 demo_2x.py --model_type <select base or lite> --ckpt <path to model checkpoint> --frame0 <path to frame 0> --frame1 <path to frame 1> --out <path to output frame>
-```
+> use `--global_off` flag to disable the global motion estimation.
+- input: 2 frames
+    ```
+    python3 demo_2x.py --model_type <select base or lite> --ckpt <path to model checkpoint> --frame0 <path to frame 0> --frame1 <path to frame 1> --out <path to output frame>
+    ```
+- input: mp4 video
+    ```
+    python3 demo_2x.py --model_type <select base or lite> --ckpt <path to model checkpoint> --video <path to .mp4 file>
+    ```
+    > use `--combine_video` flag to combine the original input video and processed video.
+    
+
+### Example: 2x interpolation comparison (24 fps v.s. 48 fps)
+<video width="640" height="720" controls>
+  <source src="./asset/output_interpolation._combine.mp4" type="video/mp4">
+</video>
 
 ## Pretrained checkpoints
 We will release the checkpoints after the final paper decision.
@@ -60,3 +73,5 @@ The first 2 phases of the training procedure (stated in our paper) utilize `trai
 
 ## Citation
 TBA
+
+## Acknowledgement

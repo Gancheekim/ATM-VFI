@@ -6,6 +6,5 @@ finetune_visualization*/
 
 data_*/
 
-*.mp4
-
 output_interpolation.png
+output_interpolation.mp4
