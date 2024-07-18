@@ -137,7 +137,7 @@ if __name__ == "__main__":
 		print(f'\noriginal video FPS: {FPS}, processed video FPS: {2*FPS}')
 
 		if args.combine_video:
-			outVidCombine = cv2.VideoWriter(args.out.replace('png', '') + '_combine.mp4', fourcc, 2*FPS, (W,2*H))
+			outVidCombine = cv2.VideoWriter(args.out.replace('.png', '') + '_combine.mp4', fourcc, 2*FPS, (W,2*H))
 
 		frame_count = 0
 		while cap.isOpened():

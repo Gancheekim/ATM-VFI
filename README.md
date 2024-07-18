@@ -30,7 +30,7 @@ For 2x interpolation, run the command below:
 
 ### Example: 2x interpolation comparison (24 fps v.s. 48 fps)
 <video width="640" height="720" controls>
-  <source src="./asset/output_interpolation._combine.mp4" type="video/mp4">
+  <source src="./asset/output_interpolation_combine.mp4" type="video/mp4">
 </video>
 
 ## Pretrained checkpoints
