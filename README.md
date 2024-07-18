@@ -29,7 +29,9 @@ For 2x interpolation, run the command below:
     
 
 ### Example: 2x interpolation comparison (24 fps v.s. 48 fps)
-[![Watch the video](./asset/video_cover_resize.png)](./asset/output_interpolation_combine_resize.mov)
+https://github.com/user-attachments/assets/72b69fc0-3976-49b2-88b7-42c25d7b45b4
+
+
 
 ## Pretrained checkpoints
 We will release the checkpoints after the final paper decision.
