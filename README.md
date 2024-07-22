@@ -14,7 +14,24 @@ In this repository, we present a versatile VFI work, utilizing the Attention-to-
 ## Dependencies
 We provide the dependencies in `requirements.txt`.
 
-## Demo
+## Example Usage
+```python
+from network.network_base import Network # or use network.network_lite 
+from demo_2x import load_model_checkpoint, inference_2frame
+
+# initialize model
+model = Network()
+load_model_checkpoint(model, 'path_to_checkpoint')
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model.to(device).eval()
+
+# prepare data and inference
+img0 = cv2.imread("path_to_frame0")
+img1 = cv2.imread("path_to_frame1")
+pred = inference_2frame(img0, img1, model, isBGR=True) # please trace demo_2x.py -> inference_2frame() for details
+```
+
+## Demo Script
 For 2x interpolation, run the command below:
 > use `--global_off` flag to disable the global motion estimation.
 - input: 2 frames
@@ -27,7 +44,6 @@ For 2x interpolation, run the command below:
     ```
     > use `--combine_video` flag to combine the original input video and processed video.
     
-
 ### Example: 2x interpolation comparison (24 fps v.s. 48 fps)
 [![Watch the video](./asset/video_cover_resize.png)](./asset/output_interpolation_combine_resize.mov)
 
@@ -73,3 +89,4 @@ The first 2 phases of the training procedure (stated in our paper) utilize `trai
 TBA
 
 ## Acknowledgement
+Thanks to [EMA-VFI](https://github.com/MCG-NJU/EMA-VFI/tree/main), [AMT](https://github.com/MCG-NKU/AMT?tab=readme-ov-file), [RIFE](https://github.com/hzwer/ECCV2022-RIFE/tree/main), [XVFI](https://github.com/JihyongOh/XVFI), [vgg_perceptual_loss](https://gist.github.com/alper111/8233cdb0414b4cb5853f2f730ab95a49), [GMFlow](https://github.com/haofeixu/gmflow) for releasing their source code.
