@@ -31,7 +31,7 @@ def deconv(in_dim, out_dim, kernel_size=4, stride=2, padding=1):
 		nn.PReLU(out_dim)
 		)    
 
-class CrossScalePatchEmbed(nn.Module):
+class CrossScaleFeatureFusion(nn.Module):
 	def __init__(self, in_dims=[32, 64, 128, 256], fused_dim=None, conv=nn.Conv2d):
 		super().__init__()
 		
@@ -89,11 +89,7 @@ class Network(nn.Module):
 	def __init__(self, global_motion=True, ensemble_global_motion=False):
 		super(Network, self).__init__()	
 		self.pyramid_level = 4
-		# self.hidden_dims = [12, 16, 32, 64]
-		# self.hidden_dims = [16, 32, 64, 128]
-		# self.hidden_dims = [24, 48, 96, 192]
-		self.hidden_dims = [16, 32, 64, 96] # (6 layer)
-		# self.hidden_dims = [16, 32, 56, 80] # (11 layer)
+		self.hidden_dims = [16, 32, 64, 96] 
 		assert len(self.hidden_dims) == self.pyramid_level
 
 		self.global_motion = global_motion
@@ -118,9 +114,9 @@ class Network(nn.Module):
 		# ---------------------------------
 		concat_dim = self.hidden_dims[-1] + self.hidden_dims[-2] + 2*self.hidden_dims[-3]
 		fused_dim = concat_dim
-		self.cross_scale_feature_fusion = CrossScalePatchEmbed(in_dims=self.hidden_dims[1:], fused_dim=fused_dim)
+		self.cross_scale_feature_fusion = CrossScaleFeatureFusion(in_dims=self.hidden_dims[1:], fused_dim=fused_dim)
 
-		self.local_motion_transformer_args = {
+		self.local_motion_args = {
 			"window_size": 8,
 			"num_heads": 8,
 			"patch_size": 1,
@@ -131,41 +127,40 @@ class Network(nn.Module):
 
 		# feature enhancement swin transformer
 		self.feat_enhance_transformer = nn.ModuleList([
-										SwinTransformer(dim=self.local_motion_transformer_args["dim"], 
-														window_size=self.local_motion_transformer_args["enhance_window"], 
+										SwinTransformer(dim=self.local_motion_args["dim"], 
+														window_size=self.local_motion_args["enhance_window"], 
 														shift_size=0, 
-														patch_size=self.local_motion_transformer_args["patch_size"], 
-														num_heads=self.local_motion_transformer_args["num_heads"], 
-														mlp_ratio=self.local_motion_transformer_args["mlp_ratio"]),
-										SwinTransformer(dim=self.local_motion_transformer_args["dim"], 
-														window_size=self.local_motion_transformer_args["enhance_window"], 
-														shift_size=self.local_motion_transformer_args["enhance_window"]//2, 
-														patch_size=self.local_motion_transformer_args["patch_size"], 
-														num_heads=self.local_motion_transformer_args["num_heads"], 
-														mlp_ratio=self.local_motion_transformer_args["mlp_ratio"])
+														patch_size=self.local_motion_args["patch_size"], 
+														num_heads=self.local_motion_args["num_heads"], 
+														mlp_ratio=self.local_motion_args["mlp_ratio"]),
+										SwinTransformer(dim=self.local_motion_args["dim"], 
+														window_size=self.local_motion_args["enhance_window"], 
+														shift_size=self.local_motion_args["enhance_window"]//2, 
+														patch_size=self.local_motion_args["patch_size"], 
+														num_heads=self.local_motion_args["num_heads"], 
+														mlp_ratio=self.local_motion_args["mlp_ratio"])
 									])
 
-		self.local_motion_transformer = nn.ModuleList([
-										ATMFormer(dim=self.local_motion_transformer_args["dim"], 
-														  window_size=self.local_motion_transformer_args["window_size"], 
+		self.local_motion_atmformer = nn.ModuleList([
+										ATMFormer(dim=self.local_motion_args["dim"], 
+														  window_size=self.local_motion_args["window_size"], 
 														  shift_size=0, 
-														  patch_size=self.local_motion_transformer_args["patch_size"], 
-														  num_heads=self.local_motion_transformer_args["num_heads"], 
-														  mlp_ratio=self.local_motion_transformer_args["mlp_ratio"]),
-										ATMFormer(dim=self.local_motion_transformer_args["dim"], 
-														  window_size=self.local_motion_transformer_args["window_size"], 
-														  shift_size=self.local_motion_transformer_args["window_size"]//2, 
-														  patch_size=self.local_motion_transformer_args["patch_size"], 
-														  num_heads=self.local_motion_transformer_args["num_heads"], 
-														  mlp_ratio=self.local_motion_transformer_args["mlp_ratio"])
+														  patch_size=self.local_motion_args["patch_size"], 
+														  num_heads=self.local_motion_args["num_heads"], 
+														  mlp_ratio=self.local_motion_args["mlp_ratio"]),
+										ATMFormer(dim=self.local_motion_args["dim"], 
+														  window_size=self.local_motion_args["window_size"], 
+														  shift_size=self.local_motion_args["window_size"]//2, 
+														  patch_size=self.local_motion_args["patch_size"], 
+														  num_heads=self.local_motion_args["num_heads"], 
+														  mlp_ratio=self.local_motion_args["mlp_ratio"])
 									])
 		
 		self.fused_dim = fused_dim * 2
 		self.motion_out_dim = 5
-		motion_mlp_hidden_dim = int(self.fused_dim * 0.5) # 280
-		# print(motion_mlp_hidden_dim)
+		motion_mlp_hidden_dim = int(self.fused_dim * 0.5)
 		self.local_motion_mlp = nn.Sequential(
-								conv(self.fused_dim + self.local_motion_transformer_args["num_heads"], motion_mlp_hidden_dim, kernel_size=3, stride=1, padding=1),
+								conv(self.fused_dim + self.local_motion_args["num_heads"], motion_mlp_hidden_dim, kernel_size=3, stride=1, padding=1),
 								conv(motion_mlp_hidden_dim, motion_mlp_hidden_dim, kernel_size=3, stride=1, padding=1),
 								nn.Conv2d(motion_mlp_hidden_dim, self.motion_out_dim, kernel_size=1, stride=1, padding=0)
 							)
@@ -180,9 +175,9 @@ class Network(nn.Module):
 								)
 		
 		concat_dim = last_feat_dim + self.hidden_dims[-1] + 2*self.hidden_dims[-2]
-		self.global_feature_fusion = CrossScalePatchEmbed(in_dims=[self.hidden_dims[-2], self.hidden_dims[-1], last_feat_dim], fused_dim=concat_dim)
+		self.global_feature_fusion = CrossScaleFeatureFusion(in_dims=[self.hidden_dims[-2], self.hidden_dims[-1], last_feat_dim], fused_dim=concat_dim)
 
-		self.global_motion_transformer_args = {
+		self.global_motion_args = {
 			"window_size": 12,
 			"num_heads": 8,
 			"patch_size": 1,
@@ -190,47 +185,44 @@ class Network(nn.Module):
 			"mlp_ratio": 2,
 		}
 
-		self.global_motion_transformer = nn.ModuleList([
-										ATMFormer(dim=self.global_motion_transformer_args["dim"], 
-														  window_size=self.global_motion_transformer_args["window_size"], 
+		self.global_motion_atmformer = nn.ModuleList([
+										ATMFormer(dim=self.global_motion_args["dim"], 
+														  window_size=self.global_motion_args["window_size"], 
 														  shift_size=0, 
-														  patch_size=self.global_motion_transformer_args["patch_size"], 
-														  num_heads=self.global_motion_transformer_args["num_heads"], 
-														  mlp_ratio=self.global_motion_transformer_args["mlp_ratio"]),
-										ATMFormer(dim=self.global_motion_transformer_args["dim"], 
-														  window_size=self.global_motion_transformer_args["window_size"], 
-														  shift_size=self.global_motion_transformer_args["window_size"]//2, 
-														  patch_size=self.global_motion_transformer_args["patch_size"], 
-														  num_heads=self.global_motion_transformer_args["num_heads"], 
-														  mlp_ratio=self.global_motion_transformer_args["mlp_ratio"])
+														  patch_size=self.global_motion_args["patch_size"], 
+														  num_heads=self.global_motion_args["num_heads"], 
+														  mlp_ratio=self.global_motion_args["mlp_ratio"]),
+										ATMFormer(dim=self.global_motion_args["dim"], 
+														  window_size=self.global_motion_args["window_size"], 
+														  shift_size=self.global_motion_args["window_size"]//2, 
+														  patch_size=self.global_motion_args["patch_size"], 
+														  num_heads=self.global_motion_args["num_heads"], 
+														  mlp_ratio=self.global_motion_args["mlp_ratio"])
 									])
-		motion_mlp_hidden_dim = int(concat_dim * 2 * 0.5) # 440
+		motion_mlp_hidden_dim = int(concat_dim * 2 * 0.5)
 		self.global_motion_mlp = nn.Sequential(
-								conv(concat_dim*2 + self.global_motion_transformer_args["num_heads"], motion_mlp_hidden_dim, kernel_size=3, stride=1, padding=1),
+								conv(concat_dim*2 + self.global_motion_args["num_heads"], motion_mlp_hidden_dim, kernel_size=3, stride=1, padding=1),
 								conv(motion_mlp_hidden_dim, motion_mlp_hidden_dim, kernel_size=3, stride=1, padding=1),
 								nn.Conv2d(motion_mlp_hidden_dim, self.motion_out_dim, kernel_size=1, stride=1, padding=0)
 							)
 				
-		self.fused_dim1 = self.fused_dim // 2 # 320 or 480 or 640
-		self.fused_dim2 = self.fused_dim // 4 # 160 or 240 or 320
-		self.fused_dim3 = self.fused_dim // 8 # 80 or 120 or 160
+		self.fused_dim1 = self.fused_dim // 2 
+		self.fused_dim2 = self.fused_dim // 4 
+		self.fused_dim3 = self.fused_dim // 8 
 		self.fused_dims = [self.fused_dim1, self.fused_dim2, self.fused_dim3, 2*self.fused_dim1]
 		deconv_args = {'kernel_size':2, 'stride':2, 'padding':0}
-		self.upsamples = nn.ModuleList([
-							# (H/8,W/8) -> (H/4,W/4)
+		self.upsample_pyramid = nn.ModuleList([
 							nn.Sequential(deconv(self.fused_dim + self.motion_out_dim, self.fused_dim1 + self.motion_out_dim, 
 												 kernel_size=deconv_args['kernel_size'], stride=deconv_args['stride'], padding=deconv_args['padding']),
 										  conv(self.fused_dim1 + self.motion_out_dim, self.fused_dim1 + self.motion_out_dim, kernel_size=3, stride=1, padding=1),
 										  nn.Conv2d(self.fused_dim1 + self.motion_out_dim, self.fused_dim1 + self.motion_out_dim, kernel_size=3, stride=1, padding=1),
 										  ),
-							# (H/4,W/4) -> (H/2,W/2)
 							nn.Sequential(nn.PReLU(self.fused_dim1 + self.motion_out_dim),
 										  deconv(self.fused_dim1 + self.motion_out_dim, self.fused_dim2 + self.motion_out_dim, 
 												 kernel_size=deconv_args['kernel_size'], stride=deconv_args['stride'], padding=deconv_args['padding']),
 										  conv(self.fused_dim2 + self.motion_out_dim, self.fused_dim2 + self.motion_out_dim, kernel_size=3, stride=1, padding=1),
 										  nn.Conv2d(self.fused_dim2 + self.motion_out_dim, self.fused_dim2 + self.motion_out_dim, kernel_size=3, stride=1, padding=1),
 										  ),
-							# (H/2,W/2) -> (H,W)
 							nn.Sequential(nn.PReLU(self.fused_dim2 + self.motion_out_dim),
 										  deconv(self.fused_dim2 + self.motion_out_dim, self.fused_dim3 + self.motion_out_dim, 
 												 kernel_size=deconv_args['kernel_size'], stride=deconv_args['stride'], padding=deconv_args['padding']),
@@ -245,70 +237,70 @@ class Network(nn.Module):
 		in_chan = self.fused_dim3 + self.motion_out_dim + 15
 		hidden_dim = 32
 		# encoder
-		self.proj = conv(in_chan, hidden_dim, kernel_size=3, stride=1, padding=1) # [256 -> 256]
-		self.down1 = nn.Sequential( # [256 -> 128]
+		self.proj = conv(in_chan, hidden_dim, kernel_size=3, stride=1, padding=1)
+		self.down1 = nn.Sequential(
 							conv(hidden_dim, hidden_dim, kernel_size=3, stride=2, padding=1),
 						)
-		self.down2 = nn.Sequential( # [128 -> 64]
+		self.down2 = nn.Sequential(
 							# concat with backbone decoder's (128-size) output first
 							conv(self.fused_dim2 + hidden_dim, 2 * hidden_dim, kernel_size=3, stride=2, padding=1),
 							conv(2 * hidden_dim, 2 * hidden_dim, kernel_size=3, stride=1, padding=1),
 						)
-		self.down3 = nn.Sequential( # [64 -> 32]
+		self.down3 = nn.Sequential(
 							# concat with backbone decoder's (64-size) output first
 							conv(self.fused_dim1 + 2 * hidden_dim, 4 * hidden_dim, kernel_size=3, stride=2, padding=1),
 							conv(4 * hidden_dim, 4 * hidden_dim, kernel_size=3, stride=1, padding=1),
 							conv(4 * hidden_dim, 4 * hidden_dim, kernel_size=3, stride=1, padding=1),
 						)
 		# decoder
-		self.up1 = nn.Sequential( # [32 -> 64]
+		self.up1 = nn.Sequential(
 							deconv(4 * hidden_dim, 2 * hidden_dim, kernel_size=2, stride=2, padding=0),
 							conv(2 * hidden_dim, 2 * hidden_dim, kernel_size=3, stride=1, padding=1),
 						)
-		self.up2 = nn.Sequential( # [64 -> 128]
+		self.up2 = nn.Sequential(
 							# concat with down2's output first
 							deconv(4 * hidden_dim, 2 * hidden_dim, kernel_size=2, stride=2, padding=0),
 							conv(2 * hidden_dim, 1 * hidden_dim, kernel_size=3, stride=1, padding=1),
 						)
-		self.up3 = nn.Sequential( # [128 -> 256]
+		self.up3 = nn.Sequential(
 							# concat with down1's output first
 							deconv(2 * hidden_dim, 1 * hidden_dim, kernel_size=2, stride=2, padding=0),
 						)
-		self.refine_head = nn.Sequential( # [256 -> 256]
+		self.refine_head = nn.Sequential(
 							# concat with proj's output first
 							conv(2 * hidden_dim, 1 * hidden_dim, kernel_size=3, stride=1, padding=1),
 							conv(1 * hidden_dim, 3, kernel_size=3, stride=1, padding=1),
 						)
 
 	def __set_local_window_size__(self, window_size):
-		self.local_motion_transformer_args["window_size"] = window_size
-		self.local_motion_transformer[0]._set_window_size_(window_size, 0)
-		self.local_motion_transformer[1]._set_window_size_(window_size, window_size//2)
+		self.local_motion_args["window_size"] = window_size
+		self.local_motion_atmformer[0]._set_window_size_(window_size, 0)
+		self.local_motion_atmformer[1]._set_window_size_(window_size, window_size//2)
 
 	def __set_global_window_size__(self, window_size):
-		self.global_motion_transformer_args["window_size"] = window_size
-		self.global_motion_transformer[0]._set_window_size_(window_size, 0)
-		self.global_motion_transformer[1]._set_window_size_(window_size, window_size//2)
+		self.global_motion_args["window_size"] = window_size
+		self.global_motion_atmformer[0]._set_window_size_(window_size, 0)
+		self.global_motion_atmformer[1]._set_window_size_(window_size, window_size//2)
 
 	def __freeze_global_motion__(self):
 		self.last_feat_extract.requires_grad_(False)
 		self.global_feature_fusion.requires_grad_(False)
-		self.global_motion_transformer.requires_grad_(False)
+		self.global_motion_atmformer.requires_grad_(False)
 		self.global_motion_mlp.requires_grad_(False)
 
 	def __finetune_global_motion__(self):
 		self.last_feat_extract.requires_grad_(True)
 		self.global_feature_fusion.requires_grad_(True)
-		self.global_motion_transformer.requires_grad_(True)
+		self.global_motion_atmformer.requires_grad_(True)
 		self.global_motion_mlp.requires_grad_(True)
 
 	def __freeze_local_motion__(self):
 		self.feat_extracts.requires_grad_(False)
 		self.cross_scale_feature_fusion.requires_grad_(False)
-		self.local_motion_transformer.requires_grad_(False)
+		self.local_motion_atmformer.requires_grad_(False)
 		self.local_motion_mlp.requires_grad_(False)
 		self.feat_enhance_transformer.requires_grad_(False)
-		self.upsamples.requires_grad_(False)
+		self.upsample_pyramid.requires_grad_(False)
 		self.proj.requires_grad_(False)
 		self.down1.requires_grad_(False)
 		self.down2.requires_grad_(False)
@@ -321,10 +313,10 @@ class Network(nn.Module):
 	def __finetune_local_motion__(self):
 		self.feat_extracts.requires_grad_(True)
 		self.cross_scale_feature_fusion.requires_grad_(True)
-		self.local_motion_transformer.requires_grad_(True)
+		self.local_motion_atmformer.requires_grad_(True)
 		self.local_motion_mlp.requires_grad_(True)
 		self.feat_enhance_transformer.requires_grad_(True)
-		self.upsamples.requires_grad_(True)
+		self.upsample_pyramid.requires_grad_(True)
 		self.proj.requires_grad_(True)
 		self.down1.requires_grad_(True)
 		self.down2.requires_grad_(True)
@@ -370,7 +362,7 @@ class Network(nn.Module):
 		feat: enhanced cross scale fusion feature, shape [2B, H, W, C]
 		'''
 		motion = []
-		for k, blk in enumerate(self.local_motion_transformer):
+		for k, blk in enumerate(self.local_motion_atmformer):
 			B, h, w, _ = feat.size()
 			feat, x_motion = blk(feat, h, w, B//2)
 			if k == 0:
@@ -396,7 +388,7 @@ class Network(nn.Module):
 		feat_ = einops.rearrange(feat_, 'B (H W) C -> B H W C', H=h_)
 
 		motion = []
-		for k, blk in enumerate(self.global_motion_transformer):
+		for k, blk in enumerate(self.global_motion_atmformer):
 			B, h_, w_, _ = feat_.size()
 			feat_, x_motion = blk(feat_, h_, w_, B//2)
 			if k == 0:
@@ -510,7 +502,7 @@ class Network(nn.Module):
 		# upscale motion along with feature
 		for i, scale in enumerate(reversed(range(self.pyramid_level-1))):
 			# forward features to get finer resolution
-			feat = self.upsamples[i](feat) 
+			feat = self.upsample_pyramid[i](feat) 
 			out = feat[:, -self.motion_out_dim:] 
 			opt_flow_0 = out[:, :2]
 			opt_flow_1 = out[:, 2:4]
@@ -676,7 +668,7 @@ class Network(nn.Module):
 		# upscale motion along with feature
 		for i, scale in enumerate(reversed(range(self.pyramid_level-1))):
 			# forward features to get finer resolution
-			feat = self.upsamples[i](feat) 
+			feat = self.upsample_pyramid[i](feat) 
 			out = feat[:, -self.motion_out_dim:] 
 			opt_flow_0 = out[:, :2]
 			opt_flow_1 = out[:, 2:4]

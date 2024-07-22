@@ -6,7 +6,8 @@ finetune_visualization*/
 
 data_*/
 
-helper.py
+helper*.py
 
 output_interpolation.png
 output_interpolation.mp4
+output_interpolation_combine.mp4
