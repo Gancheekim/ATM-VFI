@@ -16,6 +16,8 @@ We provide the dependencies in `requirements.txt`.
 
 ## Example Usage
 ```python
+import torch
+import cv2
 from network.network_base import Network # or use network.network_lite 
 from demo_2x import load_model_checkpoint, inference_2frame
 
