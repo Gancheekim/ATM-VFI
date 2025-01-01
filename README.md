@@ -1,13 +1,9 @@
 # ATM-VFI: Exploiting Attention-to-Motion via Transformer for Versatile Video Frame Interpolation (ICASSP 2025)
-> 2024.12.21 -- Our paper is accepted by ICASSP2025. We have released the model checkpoints at [here](#pretrained-checkpoints).
+> 2024.12.21 -- Our paper is accepted by ICASSP2025. We have released the model checkpoints at [here](#pretrained-checkpoints). The camera-ready version of the paper will be released before 13 Jan 2025, incorporating minor adjustments suggested by the reviewers.
 
 In this work, we present a versatile VFI architecture, utilizing the Attention-to-Motion (ATM) module to intuitively formulate motion estimation.
 
-Paper:  
-- Camera-ready version (ICASSP 2025): will be released after 13 Jan 2025.
-- Previous manuscript: [paper link](https://drive.google.com/file/d/1ZPuBj1yKJnqtsbdZ7OGuOwXxM4sPga_6/view?usp=sharing), [supplementary link](https://drive.google.com/file/d/1PEdZ3javboOA9v5etbkPNqJizIiTRcus/view?usp=sharing)
-     
-Video demo: [Youtube](https://www.youtube.com/watch?v=bSdBEfe9haM)
+| Paper | [Youtube Demo](https://www.youtube.com/watch?v=bSdBEfe9haM) | [Supplementary](https://drive.google.com/file/d/1PEdZ3javboOA9v5etbkPNqJizIiTRcus/view?usp=sharing) |
 
 **Abstract —** Video Frame Interpolation (VFI) aims to synthesize realistic intermediate frames from preceding and following video frames. Although many VFI methods perform well on specific motion types, their versatility in handling both large and small motions remains limited. In this work, we propose ATM-VFI, which is a novel hybrid CNN-Transformer architecture that effectively combines the strengths of the CNN (efficiency and considering the detail information) and the transformer (well adopting the global information). It utilizes an Attention-to-Motion (ATM) module and adopts a dual-branch (local and global branches) mechanism to intuitively formulate motion estimation and estimate global and local motion adaptively. Furthermore, we introduce a four-phase training procedure leveraging small-to-medium and large motion datasets to enhance versatility and training stability. Extensive experiments demonstrate that the proposed ATM-VFI algorithm outperforms state-of-the-art methods. It can well interpolate the video frames with a variety of motion types while maintaining high efficiency.
 
@@ -16,14 +12,14 @@ Video demo: [Youtube](https://www.youtube.com/watch?v=bSdBEfe9haM)
 <img src="./asset/davis-motor.png" alt="drawing" height="130">
 
 - small and detail motion:  
-<img src="./asset/extra-viz-data3-1.png" alt="drawing" height="500">
+<img src="./asset/extra-viz-data3-1.png" alt="drawing" height="480">
 
 
 ## Architecture Overview
 <img src="./asset/model-overview-ver3.png" alt="drawing" height="260"/>
 
 ## Attention-to-Motion
-<img src="./asset/atm_working-example.png" alt="drawing" height="265"/>&nbsp;&nbsp;<img src="./asset/ATMFormer_ver6.png" alt="drawing" height="265"/>
+<img src="./asset/atm_working-example.png" alt="drawing" height="225"/>&nbsp;&nbsp;<img src="./asset/atmformer_motion_estimation.png" alt="drawing" height="280"/>&nbsp;&nbsp;<img src="./asset/ATMFormer_ver6.png" alt="drawing" height="220"/>
 
 ## Dependencies
 We provide the dependencies in `requirements.txt`.
