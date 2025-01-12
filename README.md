@@ -3,7 +3,7 @@
 
 In this work, we present a versatile VFI architecture, utilizing the Attention-to-Motion (ATM) module to intuitively formulate motion estimation.
 
-| Paper | [Youtube Demo](https://www.youtube.com/watch?v=bSdBEfe9haM) | [Supplementary](https://drive.google.com/file/d/1PEdZ3javboOA9v5etbkPNqJizIiTRcus/view?usp=sharing) |
+| [Paper](https://drive.google.com/file/d/1h35Uy7hKFth3IEJphWOQ7Fdkfn_8nZDU/view?usp=sharing) | [Youtube Demo](https://www.youtube.com/watch?v=bSdBEfe9haM) | [Supplementary](https://drive.google.com/file/d/1PEdZ3javboOA9v5etbkPNqJizIiTRcus/view?usp=sharing) |
 
 **Abstract —** Video Frame Interpolation (VFI) aims to synthesize realistic intermediate frames from preceding and following video frames. Although many VFI methods perform well on specific motion types, their versatility in handling both large and small motions remains limited. In this work, we propose ATM-VFI, which is a novel hybrid CNN-Transformer architecture that effectively combines the strengths of the CNN (efficiency and considering the detail information) and the transformer (well adopting the global information). It utilizes an Attention-to-Motion (ATM) module and adopts a dual-branch (local and global branches) mechanism to intuitively formulate motion estimation and estimate global and local motion adaptively. Furthermore, we introduce a four-phase training procedure leveraging small-to-medium and large motion datasets to enhance versatility and training stability. Extensive experiments demonstrate that the proposed ATM-VFI algorithm outperforms state-of-the-art methods. It can well interpolate the video frames with a variety of motion types while maintaining high efficiency.
 
@@ -19,7 +19,7 @@ In this work, we present a versatile VFI architecture, utilizing the Attention-t
 <img src="./asset/model-overview-ver3.png" alt="drawing" height="260"/>
 
 ## Attention-to-Motion
-<img src="./asset/atm_working-example.png" alt="drawing" height="225"/>&nbsp;&nbsp;<img src="./asset/atmformer_motion_estimation.png" alt="drawing" height="280"/>&nbsp;&nbsp;<img src="./asset/ATMFormer_ver6.png" alt="drawing" height="220"/>
+<img src="./asset/atm_working-example.png" alt="drawing" height="210"/>&nbsp;&nbsp;<img src="./asset/atmformer_motion_estimation.png" alt="drawing" height="280"/>&nbsp;&nbsp;<img src="./asset/ATMFormer_ver6.png" alt="drawing" height="210"/>
 
 ## Dependencies
 We provide the dependencies in `requirements.txt`.
