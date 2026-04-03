@@ -1,7 +1,10 @@
 # ATM-VFI: Exploiting Attention-to-Motion via Transformer for Versatile Video Frame Interpolation (ICASSP 2025)
-> 2024.12.21 -- Our paper is accepted by ICASSP2025. We have released the model checkpoints at [here](#pretrained-checkpoints). The camera-ready version of the paper will be released before 13 Jan 2025, incorporating minor adjustments suggested by the reviewers.
+> In this work, we present a versatile VFI architecture, utilizing the Attention-to-Motion (ATM) module to intuitively formulate motion estimation.  
 
-In this work, we present a versatile VFI architecture, utilizing the Attention-to-Motion (ATM) module to intuitively formulate motion estimation.
+### News
+- 2026.04.03 -- Our work is integrated into [ComfyUI-Frame-Interpolation](https://github.com/Fannovel16/ComfyUI-Frame-Interpolation), many thanks to the open source community.  
+- 2024.12.21 -- Our paper is accepted by ICASSP2025. We have released the model checkpoints at [here](#pretrained-checkpoints). The camera-ready version of the paper will be released before 13 Jan 2025, incorporating minor adjustments suggested by the reviewers.
+
 
 | [Paper](https://ieeexplore.ieee.org/document/10890198) | [Youtube Demo](https://www.youtube.com/watch?v=bSdBEfe9haM) | [Supplementary](https://drive.google.com/file/d/1PEdZ3javboOA9v5etbkPNqJizIiTRcus/view?usp=sharing) |
 
